@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, User, ArrowRight, ShieldCheck, Briefcase } from "lucide-react";
+import { safeFetch } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,16 +21,17 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await safeFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, role, fullName }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Login failed");
+        throw new Error(res.error || "Login failed");
       }
+
+      const data = res.data;
 
       // Check if user role matches selected role
       if (data.user?.role && data.user.role !== role && role !== "admin") {

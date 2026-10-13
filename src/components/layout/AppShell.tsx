@@ -27,6 +27,7 @@ import {
   Mail,
   PhoneCall
 } from "lucide-react";
+import { safeFetch } from "@/lib/api";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -45,15 +46,14 @@ export function AppShell({ children }: AppShellProps) {
   // Fetch current authenticated user
   const fetchUser = async () => {
     try {
-      const res = await fetch("/api/auth/me");
-      const data = await res.json();
-      if (data.user) {
-        setCurrentUser(data.user);
+      const res = await safeFetch("/api/auth/me");
+      if (res.ok && res.data?.user) {
+        setCurrentUser(res.data.user);
       } else {
         setCurrentUser(null);
       }
     } catch (err) {
-      console.error("Failed to load user:", err);
+      console.warn("User auth status check:", err);
     } finally {
       setLoadingUser(false);
     }

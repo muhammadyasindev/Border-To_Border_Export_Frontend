@@ -23,6 +23,7 @@ import {
   TRADE_CATEGORIES,
   TRADE_UNITS,
 } from "@/lib/constants";
+import { safeFetch } from "@/lib/api";
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -47,9 +48,12 @@ export default function ProductsPage() {
 
   const loadMyProducts = async () => {
     try {
-      const res = await fetch("/api/products?myOnly=true");
-      const data = await res.json();
-      setProducts(data.products || []);
+      const res = await safeFetch("/api/products?myOnly=true");
+      if (res.ok) {
+        setProducts(res.data?.products || []);
+      } else {
+        console.warn("Products load notice:", res.error);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -69,7 +73,7 @@ export default function ProductsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/products", {
+      const res = await safeFetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,8 +100,7 @@ export default function ProductsPage() {
           loadMyProducts();
         }, 800);
       } else {
-        const d = await res.json();
-        alert(d.error || "Failed to create product");
+        alert(res.error || "Failed to create product");
       }
     } catch (err: any) {
       alert(err.message);

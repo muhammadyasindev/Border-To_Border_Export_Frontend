@@ -23,6 +23,7 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { EditableSelect } from "@/components/ui/EditableSelect";
+import { safeFetch } from "@/lib/api";
 import { BORDER_COUNTRIES, CORRIDOR_CITIES } from "@/lib/constants";
 
 export default function RegisterPage() {
@@ -81,15 +82,14 @@ export default function RegisterPage() {
     setSendingOtp(true);
 
     try {
-      const res = await fetch("/api/auth/register/send-otp", {
+      const res = await safeFetch("/api/auth/register/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to dispatch verification code");
+        throw new Error(res.error || "Failed to dispatch verification code");
       }
 
       setStep(3);
@@ -137,15 +137,14 @@ export default function RegisterPage() {
         payload.businessAddress = businessAddress;
       }
 
-      const res = await fetch("/api/auth/register", {
+      const res = await safeFetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Registration verification failed");
+        throw new Error(res.error || "Registration verification failed");
       }
 
       // Successful registration - redirect to dashboard with active session
@@ -163,14 +162,13 @@ export default function RegisterPage() {
     setSendingOtp(true);
 
     try {
-      const res = await fetch("/api/auth/register/send-otp", {
+      const res = await safeFetch("/api/auth/register/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to resend code");
+        throw new Error(res.error || "Failed to resend code");
       }
       setResendCooldown(30);
     } catch (err: any) {
