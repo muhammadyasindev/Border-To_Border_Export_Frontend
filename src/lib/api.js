@@ -1,5 +1,5 @@
 /**
- * Safe API request utility for BorderGlow Frontend.
+ * Safe API request utility for Border Export Hub Frontend.
  * Robustly parses responses, automatically attaches credentials & Bearer tokens,
  * and gracefully catches 502/503/HTML proxy errors without throwing JSON syntax errors.
  */

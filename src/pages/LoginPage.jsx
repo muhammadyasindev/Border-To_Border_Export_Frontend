@@ -54,10 +54,10 @@ export function LoginPage() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs">
-              BG
+              BEH
             </div>
             <span className="font-extrabold text-base tracking-tight">
-              Border<span className="text-blue-400">Glow</span>
+              Border Export <span className="text-blue-400">Hub</span>
             </span>
           </Link>
           <div className="text-xs text-slate-300">
@@ -72,7 +72,7 @@ export function LoginPage() {
       <div className="max-w-md w-full mx-auto p-4 sm:p-6 my-10">
         <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 sm:p-8">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-extrabold text-[#142B4A]">Sign In to BorderGlow</h1>
+            <h1 className="text-2xl font-extrabold text-[#142B4A]">Sign In to Border Export Hub</h1>
             <p className="text-xs text-[#64748B] mt-1">
               Select your role, enter credentials and access your corridor workspace.
             </p>
@@ -198,7 +198,7 @@ export function LoginPage() {
 
           <div className="mt-6 pt-5 border-t border-slate-100 text-center">
             <p className="text-xs text-slate-500">
-              New to BorderGlow?{" "}
+              New to Border Export Hub?{" "}
               <Link to="/register" className="text-blue-600 font-bold hover:underline">
                 Create your corridor account
               </Link>
@@ -208,7 +208,7 @@ export function LoginPage() {
       </div>
 
       <footer className="text-center py-4 text-xs text-slate-400 border-t border-slate-200 bg-white">
-        BorderGlow B2B Trade & Logistics • PK ⇄ IR ⇄ AF ⇄ CN Corridors
+        Border Export Hub • B2B Trade & Logistics • PK ⇄ IR ⇄ AF ⇄ CN Corridors
       </footer>
     </div>
   );

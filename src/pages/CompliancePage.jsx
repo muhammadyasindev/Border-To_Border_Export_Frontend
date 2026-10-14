@@ -36,7 +36,7 @@ export default function ComplianceGuidePage() {
             <Lock className="w-4 h-4 text-emerald-700" /> Strict Document Isolation & Confidentiality
           </div>
           <p className="leading-relaxed">
-            BorderGlow operates under zero-leakage security. Your national identity cards (CNIC/Passport), company tax registries, and vehicle chassis documentation are stored in encrypted private vaults. They are never indexed publicly or accessible to arbitrary traders. Only authorized compliance review officers with an active audit case may inspect verification files.
+            Border Export Hub operates under zero-leakage security. Your national identity cards (CNIC/Passport), company tax registries, and vehicle chassis documentation are stored in encrypted private vaults. They are never indexed publicly or accessible to arbitrary traders. Only authorized compliance review officers with an active audit case may inspect verification files.
           </p>
         </div>
 

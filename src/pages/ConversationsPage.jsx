@@ -35,9 +35,10 @@ import {
   ShoppingBag,
   Tag,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
 } from "lucide-react";
 import { buildApiUrl, getAuthToken } from "../lib/api.js";
+import { CallAudio } from "../lib/callAudio.js";
 
 const authFetch = async (input, init = {}) => {
   const url = typeof input === "string" ? buildApiUrl(input) : input;
@@ -94,8 +95,13 @@ export default function ConversationsPage() {
   const [callError, setCallError] = useState("");
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const pendingCandidatesRef = useRef([]);
+  const remoteDescSetRef = useRef(false);
+  const appliedCandidateIdsRef = useRef(new Set());
   const callTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -553,14 +559,35 @@ export default function ConversationsPage() {
       clearInterval(callTimerRef.current);
       callTimerRef.current = null;
     }
+    CallAudio.stop();
+
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      try {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (e) {}
       localStreamRef.current = null;
     }
+    if (remoteStreamRef.current) {
+      try {
+        remoteStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (e) {}
+      remoteStreamRef.current = null;
+    }
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+      try {
+        peerConnectionRef.current.close();
+      } catch (e) {}
       peerConnectionRef.current = null;
     }
+
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+
+    remoteDescSetRef.current = false;
+    pendingCandidatesRef.current = [];
+    appliedCandidateIdsRef.current.clear();
+
     setCallState("idle");
     setIncomingCall(null);
     setCallDuration(0);
@@ -568,6 +595,7 @@ export default function ConversationsPage() {
     setIsCameraOff(false);
     setCallError("");
   };
+
   const getIceServers = async () => {
     try {
       const res = await authFetch("/api/webrtc/ice-servers");
@@ -585,11 +613,77 @@ export default function ConversationsPage() {
       { urls: "stun:stun1.l.google.com:19302" }
     ];
   };
+
+  const setupPeerConnection = async (stream, targetConvId) => {
+    const iceServers = await getIceServers();
+    const pc = new RTCPeerConnection({ iceServers });
+    peerConnectionRef.current = pc;
+    remoteDescSetRef.current = false;
+    pendingCandidatesRef.current = [];
+    appliedCandidateIdsRef.current.clear();
+
+    // Attach local media tracks
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    // Handle incoming remote media tracks (both audio and video)
+    pc.ontrack = (event) => {
+      console.log("WebRTC ontrack event:", event.track.kind);
+      if (!remoteStreamRef.current) {
+        remoteStreamRef.current = new MediaStream();
+      }
+      if (!remoteStreamRef.current.getTracks().some((t) => t.id === event.track.id)) {
+        remoteStreamRef.current.addTrack(event.track);
+      }
+      if (event.streams && event.streams[0]) {
+        event.streams[0].getTracks().forEach((t) => {
+          if (!remoteStreamRef.current.getTracks().some((trk) => trk.id === t.id)) {
+            remoteStreamRef.current.addTrack(t);
+          }
+        });
+      }
+
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        remoteVideoRef.current.play().catch((err) => console.warn("Remote video auto-play:", err));
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        remoteAudioRef.current.play().catch((err) => console.warn("Remote audio auto-play:", err));
+      }
+    };
+
+    // Forward local ICE candidates to counterparty via signaling endpoint
+    pc.onicecandidate = (event) => {
+      if (event.candidate && targetConvId) {
+        authFetch(`/api/conversations/${targetConvId}/call`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "candidate", candidate: event.candidate })
+        }).catch(console.error);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("WebRTC ICE Connection State:", pc.iceConnectionState);
+      if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+        setCallError("Network connection interrupted. Attempting to reconnect...");
+      } else if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        setCallError("");
+      }
+    };
+
+    return pc;
+  };
+
   const startCall = async (type) => {
     if (!selectedConvId) return;
+    cleanupCall();
+
     setCallType(type);
     setCallState("calling");
     setCallError("");
+    CallAudio.startOutgoingRingback();
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -599,26 +693,14 @@ export default function ConversationsPage() {
       if (localVideoRef.current && type === "video") {
         localVideoRef.current.srcObject = stream;
       }
-      const iceServers = await getIceServers();
-      const pc = new RTCPeerConnection({ iceServers });
-      peerConnectionRef.current = pc;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      pc.ontrack = (event) => {
-        if (remoteVideoRef.current && event.streams[0]) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
-      };
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          authFetch(`/api/conversations/${selectedConvId}/call`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "candidate", candidate: event.candidate })
-          }).catch(console.error);
-        }
-      };
-      const offer = await pc.createOffer();
+
+      const pc = await setupPeerConnection(stream, selectedConvId);
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: type === "video",
+      });
       await pc.setLocalDescription(offer);
+
       await authFetch(`/api/conversations/${selectedConvId}/call`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -630,17 +712,29 @@ export default function ConversationsPage() {
       });
     } catch (err) {
       console.error("Call initiation error:", err);
+      CallAudio.stop();
+      cleanupCall();
       setCallError(
-        err.name === "NotAllowedError" ? "Microphone or camera permission was denied by browser." : `Device media error: ${err.message}`
+        err.name === "NotAllowedError"
+          ? "Microphone or camera permission was denied by your browser. Please permit access in browser settings."
+          : `Device media error: ${err.message}`
       );
     }
   };
-  const acceptCall = async () => {
-    if (!selectedConvId || !incomingCall) return;
-    const type = incomingCall.callType || "voice";
+
+  const acceptCall = async (callToAccept) => {
+    const session = callToAccept || incomingCall;
+    if (!selectedConvId || !session) return;
+
+    CallAudio.stop();
+    CallAudio.unlockAudio();
+
+    const type = session.callType || "voice";
     setCallType(type);
-    setCallState("connected");
+    setCallState("connecting");
     setIncomingCall(null);
+    setCallError("");
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -650,28 +744,26 @@ export default function ConversationsPage() {
       if (localVideoRef.current && type === "video") {
         localVideoRef.current.srcObject = stream;
       }
-      const iceServers = await getIceServers();
-      const pc = new RTCPeerConnection({ iceServers });
-      peerConnectionRef.current = pc;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      pc.ontrack = (event) => {
-        if (remoteVideoRef.current && event.streams[0]) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+
+      const pc = await setupPeerConnection(stream, selectedConvId);
+
+      if (session.offerSdp) {
+        await pc.setRemoteDescription(new RTCSessionDescription(session.offerSdp));
+        remoteDescSetRef.current = true;
+
+        // Flush any queued candidates
+        while (pendingCandidatesRef.current.length > 0) {
+          const cand = pendingCandidatesRef.current.shift();
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+          } catch (e) {
+            console.warn("Error adding queued candidate:", e);
+          }
         }
-      };
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          authFetch(`/api/conversations/${selectedConvId}/call`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "candidate", candidate: event.candidate })
-          }).catch(console.error);
-        }
-      };
-      if (incomingCall.offerSdp) {
-        await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offerSdp));
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+
         await authFetch(`/api/conversations/${selectedConvId}/call`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -681,86 +773,178 @@ export default function ConversationsPage() {
           })
         });
       }
-      callTimerRef.current = setInterval(() => {
-        setCallDuration((d) => d + 1);
-      }, 1e3);
+
+      setCallState("connected");
+      if (!callTimerRef.current) {
+        callTimerRef.current = setInterval(() => {
+          setCallDuration((d) => d + 1);
+        }, 1000);
+      }
     } catch (err) {
       console.error("Accept call error:", err);
-      setCallError(`Media error: ${err.message}`);
+      cleanupCall();
+      setCallError(
+        err.name === "NotAllowedError"
+          ? "Microphone or camera permission was denied by your browser."
+          : `Media error: ${err.message}`
+      );
     }
   };
+
   const rejectCall = async () => {
     if (!selectedConvId) return;
+    CallAudio.stop();
     await authFetch(`/api/conversations/${selectedConvId}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reject" })
     }).catch(console.error);
-    setIncomingCall(null);
+    cleanupCall();
   };
+
   const endCall = async () => {
     if (!selectedConvId) return;
+    CallAudio.stop();
+    const actionToSend = callState === "calling" ? "cancel" : "end";
     await authFetch(`/api/conversations/${selectedConvId}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "end" })
+      body: JSON.stringify({ action: actionToSend })
     }).catch(console.error);
     cleanupCall();
     loadActiveConversation(selectedConvId);
   };
+
   const toggleMute = () => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
-      audioTracks.forEach((t) => t.enabled = !t.enabled);
+      audioTracks.forEach((t) => (t.enabled = !t.enabled));
       setIsMuted(!isMuted);
     }
   };
+
   const toggleCamera = () => {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks();
-      videoTracks.forEach((t) => t.enabled = !t.enabled);
+      videoTracks.forEach((t) => (t.enabled = !t.enabled));
       setIsCameraOff(!isCameraOff);
     }
   };
+
+  // WebRTC Signaling & Active Call Polling Engine
   useEffect(() => {
     if (!selectedConvId) return;
+
+    // Check if autoAccept parameter was passed in URL query
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("autoAccept") === "true") {
+      params.delete("autoAccept");
+      window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+      authFetch(`/api/conversations/${selectedConvId}/call`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.call && d.call.status === "ringing") {
+            acceptCall(d.call);
+          }
+        })
+        .catch(console.error);
+    }
+
     const pollInterval = setInterval(async () => {
       try {
         const res = await authFetch(`/api/conversations/${selectedConvId}/call`);
         const data = await res.json();
         const session = data.call;
         if (!session) return;
-        if (session.status === "ringing" && currentUser && session.callerId !== currentUser.id && callState === "idle" && !incomingCall) {
+
+        const currentUserIdStr = String(currentUser?._id || currentUser?.id || "");
+
+        // 1. Detection of incoming call
+        if (
+          session.status === "ringing" &&
+          currentUserIdStr &&
+          String(session.callerId) !== currentUserIdStr &&
+          callState === "idle" &&
+          !incomingCall
+        ) {
           setIncomingCall(session);
+          CallAudio.startIncomingRingtone();
         }
+
+        // 2. Caller receives counterparty answer SDP
         if (callState === "calling" && session.status === "connected" && session.answerSdp) {
+          CallAudio.stop();
           if (peerConnectionRef.current && peerConnectionRef.current.signalingState !== "closed") {
             try {
               if (peerConnectionRef.current.currentRemoteDescription === null) {
                 await peerConnectionRef.current.setRemoteDescription(
                   new RTCSessionDescription(session.answerSdp)
                 );
+                remoteDescSetRef.current = true;
+
+                // Flush queued candidates
+                while (pendingCandidatesRef.current.length > 0) {
+                  const cand = pendingCandidatesRef.current.shift();
+                  try {
+                    await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand));
+                  } catch (e) {
+                    console.warn("Error adding queued candidate to caller:", e);
+                  }
+                }
               }
             } catch (err) {
-              console.error(err);
+              console.error("Caller setRemoteDescription error:", err);
             }
           }
           setCallState("connected");
           if (!callTimerRef.current) {
             callTimerRef.current = setInterval(() => {
               setCallDuration((d) => d + 1);
-            }, 1e3);
+            }, 1000);
           }
         }
-        if ((callState === "calling" || callState === "connected") && (session.status === "ended" || session.status === "rejected")) {
+
+        // 3. Bidirectional ICE candidate exchange & synchronization
+        if (session.iceCandidates && Array.isArray(session.iceCandidates)) {
+          for (const item of session.iceCandidates) {
+            if (String(item.senderId) !== currentUserIdStr && item.candidate) {
+              const candKey = JSON.stringify(item.candidate);
+              if (!appliedCandidateIdsRef.current.has(candKey)) {
+                appliedCandidateIdsRef.current.add(candKey);
+
+                if (
+                  peerConnectionRef.current &&
+                  remoteDescSetRef.current &&
+                  peerConnectionRef.current.remoteDescription
+                ) {
+                  peerConnectionRef.current
+                    .addIceCandidate(new RTCIceCandidate(item.candidate))
+                    .catch((err) => console.warn("Remote candidate apply error:", err));
+                } else {
+                  pendingCandidatesRef.current.push(item.candidate);
+                }
+              }
+            }
+          }
+        }
+
+        // 4. Remote peer ended, declined, or call timed out
+        if (
+          (callState === "calling" || callState === "connected" || callState === "connecting") &&
+          (session.status === "ended" || session.status === "rejected" || session.status === "timeout")
+        ) {
+          CallAudio.stop();
           cleanupCall();
           loadActiveConversation(selectedConvId);
         }
       } catch (err) {
+        console.warn("Call signaling poll error:", err);
       }
-    }, 2e3);
+    }, 2000);
+
     return () => clearInterval(pollInterval);
   }, [selectedConvId, currentUser, callState, incomingCall]);
+
   const formatTimer = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
@@ -1646,125 +1830,176 @@ export default function ConversationsPage() {
               </form>
             </div>
 
-            {
-    /* ================= Active Call Overlay / Screen ================= */
-  }
-            {callState !== "idle" && <div className="absolute inset-0 bg-slate-900/95 z-40 flex flex-col justify-between p-6 text-white backdrop-blur-md">
-                {
-    /* Top Call Bar */
-  }
+            {/* Hidden dedicated remote audio element for bidirectional speech playback */}
+            <audio ref={remoteAudioRef} autoPlay playsInline />
+
+            {/* Incoming Call Overlay Dialog */}
+            {incomingCall && callState === "idle" && (
+              <div className="absolute inset-0 bg-slate-900/90 z-50 flex items-center justify-center p-6 backdrop-blur-md animate-in fade-in">
+                <div className="bg-[#0b1728] border-2 border-emerald-500 rounded-3xl p-8 max-w-sm w-full text-center space-y-6 text-white shadow-2xl">
+                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto animate-pulse">
+                    {incomingCall.callType === "video" ? (
+                      <Video className="w-10 h-10 text-emerald-400" />
+                    ) : (
+                      <Phone className="w-10 h-10 text-emerald-400" />
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="inline-block px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-2">
+                      Incoming {incomingCall.callType === "video" ? "Video Call" : "Voice Call"}
+                    </div>
+                    <h3 className="text-xl font-extrabold text-white">
+                      {incomingCall.callerName || "Trade Partner"}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {incomingCall.callerRole ? `${incomingCall.callerRole.toUpperCase()} — ` : ""}Trade partner is calling you
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={rejectCall}
+                      className="flex-1 py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                      Decline
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => acceptCall()}
+                      className="flex-1 py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Accept Call
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= Active Call Overlay / Screen ================= */}
+            {callState !== "idle" && (
+              <div className="absolute inset-0 bg-slate-900/95 z-40 flex flex-col justify-between p-6 text-white backdrop-blur-md">
+                {/* Top Call Bar */}
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
                     <span className="font-bold text-sm">
-                      {callType === "video" ? "\u{1F4F9} WebRTC Video Call" : "\u{1F4DE} Encrypted Voice Call"}
+                      {callType === "video" ? "📹 WebRTC Video Call" : "📞 Encrypted Voice Call"}
                     </span>
                     <span className="text-xs text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded">
-                      {callState === "connected" ? formatTimer(callDuration) : "Ringing..."}
+                      {callState === "connected"
+                        ? formatTimer(callDuration)
+                        : callState === "connecting"
+                        ? "Connecting Media..."
+                        : "Ringing..."}
                     </span>
                   </div>
 
                   <div className="text-xs text-slate-300">
-                    Room: {activeConvData.conversation?.title}
+                    Room: {activeConvData?.conversation?.title || "Deal Room"}
                   </div>
                 </div>
 
-                {
-    /* Error Banner if any */
-  }
-                {callError && <div className="p-3 bg-rose-500/80 border border-rose-400 rounded-lg text-xs flex items-center gap-2 text-white">
+                {/* Error Banner if any */}
+                {callError && (
+                  <div className="p-3 bg-rose-500/80 border border-rose-400 rounded-lg text-xs flex items-center gap-2 text-white">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{callError}</span>
-                  </div>}
+                  </div>
+                )}
 
-                {
-    /* Center Video / Audio Stream Display */
-  }
+                {/* Center Video / Audio Stream Display */}
                 <div className="flex-1 my-4 flex items-center justify-center relative min-h-0">
-                  {callType === "video" ? <div className="w-full h-full relative flex items-center justify-center bg-black/60 rounded-2xl overflow-hidden border border-slate-800">
-                      {
-    /* Remote Video Stream */
-  }
+                  {callType === "video" ? (
+                    <div className="w-full h-full relative flex items-center justify-center bg-black/60 rounded-2xl overflow-hidden border border-slate-800">
+                      {/* Remote Video Stream */}
                       <video
-    ref={remoteVideoRef}
-    autoPlay
-    playsInline
-    className="w-full h-full object-cover"
-  />
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
 
-                      {
-    /* Local Video Stream PiP */
-  }
+                      {/* Local Video Stream PiP */}
                       <div className="absolute top-4 right-4 w-36 h-28 bg-slate-800 rounded-xl overflow-hidden border-2 border-white/20 shadow-2xl">
                         <video
-    ref={localVideoRef}
-    autoPlay
-    playsInline
-    muted
-    className="w-full h-full object-cover"
-  />
+                          ref={localVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover"
+                        />
                         <div className="absolute bottom-1 left-2 text-[10px] bg-black/60 px-1 rounded text-white font-medium">
                           You {isCameraOff ? "(Cam Off)" : ""}
                         </div>
                       </div>
-                    </div> : (
-    /* Voice Call Avatar Display */
-    <div className="text-center space-y-4">
+                    </div>
+                  ) : (
+                    /* Voice Call Avatar Display */
+                    <div className="text-center space-y-4">
                       <div className="w-24 h-24 rounded-full bg-blue-600/30 border-4 border-blue-400 flex items-center justify-center mx-auto shadow-xl">
                         <Phone className="w-10 h-10 text-blue-300 animate-pulse" />
                       </div>
                       <div>
                         <h4 className="text-lg font-bold">1-to-1 Voice Deal Room</h4>
                         <p className="text-xs text-slate-400 mt-1">
-                          {callState === "connected" ? "Live bilateral audio active" : "Calling partner..."}
+                          {callState === "connected"
+                            ? "Live bilateral audio active"
+                            : callState === "connecting"
+                            ? "Establishing media stream..."
+                            : "Calling partner..."}
                         </p>
                       </div>
                     </div>
-  )}
+                  )}
                 </div>
 
-                {
-    /* Bottom Call Controls */
-  }
+                {/* Bottom Call Controls */}
                 <div className="flex items-center justify-center gap-4 pt-3 border-t border-slate-800">
-                  {
-    /* Mute Button */
-  }
+                  {/* Mute Button */}
                   <button
-    type="button"
-    onClick={toggleMute}
-    className={`p-3 rounded-full transition ${isMuted ? "bg-rose-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-200"}`}
-    title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
-  >
+                    type="button"
+                    onClick={toggleMute}
+                    className={`p-3 rounded-full transition ${
+                      isMuted ? "bg-rose-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-200"
+                    }`}
+                    title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
+                  >
                     {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                   </button>
 
-                  {
-    /* Camera Toggle Button (if video) */
-  }
-                  {callType === "video" && <button
-    type="button"
-    onClick={toggleCamera}
-    className={`p-3 rounded-full transition ${isCameraOff ? "bg-rose-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-200"}`}
-    title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-  >
+                  {/* Camera Toggle Button (if video) */}
+                  {callType === "video" && (
+                    <button
+                      type="button"
+                      onClick={toggleCamera}
+                      className={`p-3 rounded-full transition ${
+                        isCameraOff ? "bg-rose-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-200"
+                      }`}
+                      title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
+                    >
                       {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-                    </button>}
+                    </button>
+                  )}
 
-                  {
-    /* End Call Button */
-  }
+                  {/* End Call Button */}
                   <button
-    type="button"
-    onClick={endCall}
-    className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-xs flex items-center gap-2 shadow-lg transition"
-    title="End Call and Disconnect"
-  >
+                    type="button"
+                    onClick={endCall}
+                    className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-full font-bold text-xs flex items-center gap-2 shadow-lg transition cursor-pointer"
+                    title="End Call and Disconnect"
+                  >
                     <PhoneOff className="w-4 h-4" />
                     End Call
                   </button>
                 </div>
-              </div>}
+              </div>
+            )}
+
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">

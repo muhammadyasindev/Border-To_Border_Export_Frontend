@@ -22,8 +22,10 @@ import {
   Check,
   MessageCircle,
   Mail,
+  Phone,
 } from "lucide-react";
 import { safeFetch, setAuthToken } from "../../lib/api.js";
+import { CallAudio } from "../../lib/callAudio.js";
 
 export function AppShell({ children }) {
   const location = useLocation();
@@ -106,10 +108,61 @@ export function AppShell({ children }) {
     }
   };
 
+  const [globalIncomingCall, setGlobalIncomingCall] = useState(null);
+
   useEffect(() => {
     fetchUser();
     fetchNotifications();
   }, [pathname]);
+
+  // Global incoming call detection across all pages
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const interval = setInterval(async () => {
+      // If already on conversations page, ConversationsPage manages its own in-room calls
+      if (pathname.startsWith("/conversations")) return;
+
+      try {
+        const res = await safeFetch("/api/conversations/active-calls/incoming");
+        if (res.ok && res.data?.incomingCall) {
+          const call = res.data.incomingCall;
+          if (!globalIncomingCall || globalIncomingCall.callId !== call.callId) {
+            setGlobalIncomingCall(call);
+            CallAudio.startIncomingRingtone();
+          }
+        } else {
+          if (globalIncomingCall) {
+            CallAudio.stop();
+            setGlobalIncomingCall(null);
+          }
+        }
+      } catch (e) {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [currentUser, pathname, globalIncomingCall]);
+
+  const handleAcceptGlobalCall = () => {
+    CallAudio.stop();
+    if (globalIncomingCall) {
+      const convoId = globalIncomingCall.conversationId;
+      setGlobalIncomingCall(null);
+      navigate(`/conversations?id=${convoId}&autoAccept=true`);
+    }
+  };
+
+  const handleRejectGlobalCall = async () => {
+    CallAudio.stop();
+    if (globalIncomingCall) {
+      const convoId = globalIncomingCall.conversationId;
+      setGlobalIncomingCall(null);
+      await safeFetch(`/api/conversations/${convoId}/call`, {
+        method: "POST",
+        body: JSON.stringify({ action: "reject" }),
+      }).catch(console.error);
+    }
+  };
 
   const cachedRole = localStorage.getItem("user_role");
   const role = currentUser?.role || cachedRole || "exporter";
@@ -198,7 +251,7 @@ export function AppShell({ children }) {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-xl tracking-tight text-white leading-none">
-                Border<span className="text-emerald-400">Glow</span>
+                Border Export <span className="text-emerald-400">Hub</span>
               </span>
               <span className="text-[10px] tracking-wide text-slate-400 font-medium mt-1">
                 Global Trade. Brighter Together.
@@ -248,7 +301,7 @@ export function AppShell({ children }) {
               <span>Verified Business</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed mb-3">
-              Your account is verified and trusted in the BorderGlow network.
+              Your account is verified and trusted in the Border Export Hub network.
             </p>
             <Link
               to={`/profile/${currentUser?.id || currentUser?._id || 1}`}
@@ -486,7 +539,7 @@ export function AppShell({ children }) {
               <div>
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800">
                   <div className="font-extrabold text-base text-white">
-                    Border<span className="text-emerald-400">Glow</span>
+                    Border Export <span className="text-emerald-400">Hub</span>
                   </div>
                   <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400 hover:text-white">
                     <X className="w-5 h-5" />
@@ -619,6 +672,53 @@ export function AppShell({ children }) {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Incoming Call Dialog */}
+      {globalIncomingCall && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#0b1728] border-2 border-emerald-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6 text-white relative">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto animate-pulse">
+              {globalIncomingCall.callType === "video" ? (
+                <Video className="w-10 h-10 text-emerald-400" />
+              ) : (
+                <Phone className="w-10 h-10 text-emerald-400" />
+              )}
+            </div>
+
+            <div>
+              <div className="inline-block px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-2">
+                Incoming {globalIncomingCall.callType === "video" ? "Video Call" : "Encrypted Voice Call"}
+              </div>
+              <h3 className="text-xl font-extrabold text-white">
+                {globalIncomingCall.callerName || "Trade Partner"}
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Deal Room: {globalIncomingCall.conversationTitle || "Commercial Negotiation"}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 pt-2">
+              <button
+                type="button"
+                onClick={handleRejectGlobalCall}
+                className="flex-1 py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                Decline
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAcceptGlobalCall}
+                className="flex-1 py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Phone className="w-4 h-4" />
+                Accept Call
+              </button>
             </div>
           </div>
         </div>

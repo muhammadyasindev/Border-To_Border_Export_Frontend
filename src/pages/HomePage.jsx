@@ -33,6 +33,82 @@ export default function LandingPage() {
   const [liveOpportunities, setLiveOpportunities] = useState([]);
   const [loadingOpportunities, setLoadingOpportunities] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [inquiryForm, setInquiryForm] = useState({
+    fullName: "",
+    phoneNumber: "",
+    email: "",
+    cityOrAddress: "",
+    subject: "",
+    message: "",
+  });
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquiryFeedback, setInquiryFeedback] = useState(null);
+
+  const handleInquirySubmit = async (e) => {
+    e.preventDefault();
+    setInquiryFeedback(null);
+
+    if (!inquiryForm.fullName.trim() || inquiryForm.fullName.trim().length < 2) {
+      setInquiryFeedback({ type: "error", message: "Please provide your Full Name (minimum 2 characters)." });
+      return;
+    }
+    if (!inquiryForm.phoneNumber.trim() || inquiryForm.phoneNumber.trim().length < 7) {
+      setInquiryFeedback({ type: "error", message: "Please provide a valid Phone Number (minimum 7 digits)." });
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!inquiryForm.email.trim() || !emailRegex.test(inquiryForm.email.trim())) {
+      setInquiryFeedback({ type: "error", message: "Please provide a valid Email Address." });
+      return;
+    }
+    if (!inquiryForm.cityOrAddress.trim()) {
+      setInquiryFeedback({ type: "error", message: "Please enter your Address or City." });
+      return;
+    }
+    if (!inquiryForm.subject.trim() || inquiryForm.subject.trim().length < 3) {
+      setInquiryFeedback({ type: "error", message: "Please enter an Inquiry Subject." });
+      return;
+    }
+    if (!inquiryForm.message.trim() || inquiryForm.message.trim().length < 5) {
+      setInquiryFeedback({ type: "error", message: "Please provide an Inquiry Message (minimum 5 characters)." });
+      return;
+    }
+
+    setInquirySubmitting(true);
+    try {
+      const res = await safeFetch("/api/contact/inquiry", {
+        method: "POST",
+        body: JSON.stringify(inquiryForm),
+      });
+
+      if (res.ok && res.data?.success) {
+        setInquiryFeedback({
+          type: "success",
+          message: res.data.message || "Inquiry sent successfully to our WhatsApp support coordinator!",
+        });
+        setInquiryForm({
+          fullName: "",
+          phoneNumber: "",
+          email: "",
+          cityOrAddress: "",
+          subject: "",
+          message: "",
+        });
+      } else {
+        setInquiryFeedback({
+          type: "error",
+          message: res.data?.error || res.error || "Failed to deliver inquiry. Please verify your entries.",
+        });
+      }
+    } catch (err) {
+      setInquiryFeedback({
+        type: "error",
+        message: "Network error sending inquiry. Please try again or reach us directly on WhatsApp.",
+      });
+    } finally {
+      setInquirySubmitting(false);
+    }
+  };
   useEffect(() => {
     async function loadData() {
       try {
@@ -93,7 +169,7 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-xl tracking-tight text-white leading-none flex items-center gap-1.5">
-                Border<span className="text-emerald-400">Glow</span>
+                Border Export <span className="text-emerald-400">Hub</span>
               </span>
               <span className="text-[10px] tracking-wide text-slate-300 font-medium mt-0.5">
                 Global Trade. Brighter Together.
@@ -280,7 +356,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="mt-6 text-sm sm:text-base text-slate-200 max-w-2xl leading-relaxed font-normal">
-                BorderGlow is a secure B2B platform that connects exporters, importers, transporters and drivers across <span className="text-white font-semibold">Pakistan, Iran and Afghanistan</span> — making global trade simpler, safer and faster.
+                Border Export Hub is a secure B2B platform that connects exporters, importers, transporters and drivers across <span className="text-white font-semibold">Pakistan, Iran and Afghanistan</span> — making global trade simpler, safer and faster.
               </p>
 
               {
@@ -591,12 +667,12 @@ export default function LandingPage() {
             </div>
 
             {
-    /* Right Trust Panel: "Why BorderGlow?" */
+    /* Right Trust Panel: "Why Border Export Hub?" */
   }
             <div className="lg:col-span-4 bg-gradient-to-br from-[#0c2e35] via-[#09222c] to-[#061822] text-white rounded-2xl p-6 sm:p-7 border border-teal-800/40 shadow-lg flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-                  WHY BORDERGLOW?
+                  WHY BORDER EXPORT HUB?
                 </span>
                 <h3 className="text-xl sm:text-2xl font-extrabold text-white mt-1 leading-snug">
                   Your Trusted Partner in International Trade
@@ -650,7 +726,7 @@ export default function LandingPage() {
               CORRIDOR WORKFLOW
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] mt-1">
-              How Cross-Border Trade Operates on BorderGlow
+              How Cross-Border Trade Operates on Border Export Hub
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-2">
               From inquiry to customs transit clearance across Pakistan, Iran, and Afghanistan.
@@ -706,14 +782,14 @@ export default function LandingPage() {
               <span className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-3 py-1 rounded-full inline-block">
                 REGIONAL INFRASTRUCTURE
               </span>
-              <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0F172A] mt-3 tracking-tight leading-tight">
+              <h2 className="text-2xl sm:4xl font-extrabold text-[#0F172A] mt-3 tracking-tight leading-tight">
                 Built Specifically for Cross-Border Land Corridors
               </h2>
               <p className="text-xs sm:text-sm text-slate-700 mt-4 leading-relaxed font-medium">
                 Land trade between South Asia and Central Asia requires specialized coordination. Traditional marketplaces ignore bilateral permits, road haulage customs clearances, and multi-currency frontier arrangements.
               </p>
               <p className="text-xs sm:text-sm text-slate-700 mt-3 leading-relaxed font-medium">
-                BorderGlow bridges the gap with verified stakeholder registries, private deal-room encryption, and transparent road freight booking across the Quetta-Taftan, Zahedan-Mirjaveh, and Chaman-Spin Boldak routes.
+                Border Export Hub bridges the gap with verified stakeholder registries, private deal-room encryption, and transparent road freight booking across the Quetta-Taftan, Zahedan-Mirjaveh, and Chaman-Spin Boldak routes.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5 text-xs">
@@ -776,27 +852,213 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {
-    /* 7. Footer: ULTRA-PREMIUM EXECUTIVE DESIGN WITH TOP AMBIENT GLOW & CRISP DIRECT SUPPORT */
-  }
-      <footer id="contact" className="bg-[#030914] text-white pt-16 pb-12 border-t-2 border-emerald-500/50 relative overflow-hidden">
-        {
-    /* Top Emerald Ambient Glow Accent */
-  }
+      {/* 6.5. Contact Us Form with Server-Side WhatsApp Delivery */}
+      <section id="contact" className="py-20 bg-[#071324] text-white relative overflow-hidden border-t-2 border-emerald-500/40">
         <div className="absolute top-0 left-1/4 right-1/4 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_20px_#10B981]" />
 
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-3">
+              <MessageCircle className="w-3.5 h-3.5" />
+              Direct WhatsApp Trade Coordination
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Contact Our Trade Desk
+            </h2>
+            <p className="mt-3 text-slate-300 text-sm leading-relaxed">
+              Submit your inquiry below. Our backend validates and delivers your complete commercial inquiry directly to our WhatsApp coordinator at <span className="text-emerald-400 font-bold">03324042186</span> without redirecting you away from the website.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left Contact Info Card */}
+            <div className="lg:col-span-4 bg-[#0c1a2d] border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
+              <div>
+                <h3 className="font-extrabold text-lg text-white mb-2">Border Export Hub Coordinator</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Fast-track your cross-border trade operations across Taftan / Mirjaveh, Chaman / Spin Boldak, and Rimdan / Gabd corridors.
+                </p>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#081525] border border-emerald-500/30">
+                  <MessageCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Destination WhatsApp</div>
+                    <div className="font-bold text-sm text-white">03324042186</div>
+                    <div className="text-[10px] text-emerald-400 font-semibold mt-0.5">Automated Server Delivery Active</div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#081525] border border-blue-500/30">
+                  <Mail className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Official Email</div>
+                    <div className="font-bold text-sm text-white">Yasinsasoli186@gmail.com</div>
+                    <div className="text-[10px] text-blue-400 font-semibold mt-0.5">Trade Coordinator Desk</div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#081525] border border-slate-700/60">
+                  <Headphones className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Operating Hours</div>
+                    <div className="font-bold text-sm text-white">24/7 Bilateral Support</div>
+                    <div className="text-[10px] text-slate-400 font-semibold mt-0.5">Real-time convoy & clearance assistance</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Interactive Form Panel */}
+            <div className="lg:col-span-8 bg-[#0b1728] border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl">
+              {inquiryFeedback && (
+                <div
+                  className={`mb-6 p-4 rounded-xl text-xs font-semibold flex items-start gap-3 ${
+                    inquiryFeedback.type === "success"
+                      ? "bg-emerald-950/80 border border-emerald-500 text-emerald-200"
+                      : "bg-rose-950/80 border border-rose-500 text-rose-200"
+                  }`}
+                >
+                  {inquiryFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <X className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="leading-relaxed">{inquiryFeedback.message}</div>
+                </div>
+              )}
+
+              <form onSubmit={handleInquirySubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      Full Name <span className="text-emerald-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Tariq Mehmood"
+                      value={inquiryForm.fullName}
+                      onChange={(e) => setInquiryForm({ ...inquiryForm, fullName: e.target.value })}
+                      className="w-full text-xs p-3 bg-[#081525] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      Phone Number <span className="text-emerald-400">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 03001234567"
+                      value={inquiryForm.phoneNumber}
+                      onChange={(e) => setInquiryForm({ ...inquiryForm, phoneNumber: e.target.value })}
+                      className="w-full text-xs p-3 bg-[#081525] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      Email Address <span className="text-emerald-400">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. trader@company.com"
+                      value={inquiryForm.email}
+                      onChange={(e) => setInquiryForm({ ...inquiryForm, email: e.target.value })}
+                      className="w-full text-xs p-3 bg-[#081525] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      Address or City <span className="text-emerald-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Quetta / Taftan / Zahedan"
+                      value={inquiryForm.cityOrAddress}
+                      onChange={(e) => setInquiryForm({ ...inquiryForm, cityOrAddress: e.target.value })}
+                      className="w-full text-xs p-3 bg-[#081525] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    Inquiry Subject <span className="text-emerald-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Bulk Rice Export to Iran via Taftan border"
+                    value={inquiryForm.subject}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, subject: e.target.value })}
+                    className="w-full text-xs p-3 bg-[#081525] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    Inquiry Message <span className="text-emerald-400">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    required
+                    placeholder="Describe your consignment specifications, required cargo capacity, destination terminal, or compliance requirements..."
+                    value={inquiryForm.message}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, message: e.target.value })}
+                    className="w-full text-xs p-3 bg-[#081525] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between flex-wrap gap-4">
+                  <div className="text-[11px] text-slate-400">
+                    🔒 Submissions are protected against spam and logged securely in Border Export Hub.
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={inquirySubmitting}
+                    className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center gap-2 cursor-pointer"
+                  >
+                    {inquirySubmitting ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                        Transmitting to WhatsApp...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-4 h-4" />
+                        Send Inquiry to WhatsApp Desk
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Footer: EXECUTIVE DESIGN WITH BRANDING & CLEAN FINISH */}
+      <footer className="bg-[#030914] text-white pt-16 pb-12 border-t-2 border-emerald-500/50 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-10">
-          {
-    /* Col 1: Brand & Direct Support */
-  }
+          {/* Col 1: Brand & Direct Support */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-slate-950 font-black text-base shadow-lg shadow-emerald-500/30">
-                BG
+                BEH
               </div>
               <div>
                 <span className="font-black text-xl text-white tracking-tight">
-                  Border<span className="text-emerald-400">Glow</span>
+                  Border Export <span className="text-emerald-400">Hub</span>
                 </span>
                 <span className="block text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
                   Global Trade. Brighter Together.
@@ -807,37 +1069,27 @@ export default function LandingPage() {
               The premier cross-border B2B trade, marketplace discovery, and road freight dispatch platform connecting Pakistan, Iran, and Afghanistan.
             </p>
 
-            {
-    /* DIRECT SUPPORT DETAILS (WhatsApp & Email as requested) */
-  }
             <div className="pt-2 p-4 rounded-2xl bg-[#08172b] border border-emerald-500/40 space-y-2.5 shadow-xl">
               <div className="font-extrabold text-emerald-400 text-xs uppercase tracking-wider flex items-center gap-2">
                 <Headphones className="w-4 h-4 text-emerald-400" /> 24/7 Official Trade Support:
               </div>
               <div>
-                <a
-    href="https://wa.me/923324042186"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="font-extrabold text-white hover:text-emerald-300 text-sm flex items-center gap-2 transition"
-  >
+                <div className="font-extrabold text-white text-sm flex items-center gap-2">
                   <MessageCircle className="w-4 h-4 text-emerald-400" /> WhatsApp: 03324042186
-                </a>
+                </div>
               </div>
               <div>
                 <a
-    href="mailto:Yasinsasoli186@gmail.com"
-    className="font-extrabold text-white hover:text-emerald-300 text-sm flex items-center gap-2 transition"
-  >
+                  href="mailto:Yasinsasoli186@gmail.com"
+                  className="font-extrabold text-white hover:text-emerald-300 text-sm flex items-center gap-2 transition"
+                >
                   <Mail className="w-4 h-4 text-emerald-400" /> Yasinsasoli186@gmail.com
                 </a>
               </div>
             </div>
           </div>
 
-          {
-    /* Col 2: Marketplace */
-  }
+          {/* Col 2: Marketplace */}
           <div>
             <h5 className="font-black text-white text-base mb-4 uppercase tracking-wider border-b border-slate-800 pb-2">
               Trade Marketplace
@@ -850,9 +1102,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          {
-    /* Col 3: Navigation */
-  }
+          {/* Col 3: Navigation */}
           <div>
             <h5 className="font-black text-white text-base mb-4 uppercase tracking-wider border-b border-slate-800 pb-2">
               Platform Navigation
@@ -863,18 +1113,16 @@ export default function LandingPage() {
               <li><Link to="/shipments" className="hover:text-emerald-400 transition flex items-center gap-1.5"><span>•</span> Shipment Tracking</Link></li>
               <li>
                 <button
-    onClick={() => setShowVerificationModal(true)}
-    className="text-left font-bold text-slate-200 hover:text-emerald-400 transition cursor-pointer flex items-center gap-1.5"
-  >
+                  onClick={() => setShowVerificationModal(true)}
+                  className="text-left font-bold text-slate-200 hover:text-emerald-400 transition cursor-pointer flex items-center gap-1.5"
+                >
                   <span>•</span> Verification Guide
                 </button>
               </li>
             </ul>
           </div>
 
-          {
-    /* Col 4: Land Crossings */
-  }
+          {/* Col 4: Land Crossings */}
           <div>
             <h5 className="font-black text-white text-base mb-4 uppercase tracking-wider border-b border-slate-800 pb-2">
               Supported Land Crossings
@@ -899,17 +1147,9 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm font-bold text-slate-300 gap-4">
-          <div>© 2026 BorderGlow Technologies. All rights reserved.</div>
-          <div className="flex items-center gap-6">
-            <span className="text-slate-400 text-xs hidden md:inline">🔒 Protected by 256-bit TLS & Deal Privacy</span>
-            <button onClick={() => setShowVerificationModal(true)} className="hover:text-emerald-300 cursor-pointer font-bold transition">
-              Privacy Policy & Document Safety
-            </button>
-            <Link to="/marketplace" className="hover:text-emerald-300 font-bold transition">
-              Terms of Service
-            </Link>
-          </div>
+        {/* Footer bottom without the removed links, with updated copyright */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-slate-800/80 flex items-center justify-center text-xs sm:text-sm font-bold text-slate-300 text-center">
+          <div>© 2026 Border Export Hub. All rights reserved.</div>
         </div>
       </footer>
 
@@ -976,13 +1216,13 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-xl font-bold">What is Required for Verification?</h3>
                 <p className="text-xs text-slate-300 mt-1">
-                  Learn how BorderGlow verifies traders while protecting sensitive identity documents.
+                  Learn how Border Export Hub verifies traders while protecting sensitive identity documents.
                 </p>
               </div>
               <button
-    onClick={() => setShowVerificationModal(false)}
-    className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition"
-  >
+                onClick={() => setShowVerificationModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1042,15 +1282,15 @@ export default function LandingPage() {
 
               <div className="pt-2 flex justify-end gap-3">
                 <button
-    onClick={() => setShowVerificationModal(false)}
-    className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
-  >
+                  onClick={() => setShowVerificationModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+                >
                   Close Guide
                 </button>
                 <Link
-    to="/register"
-    className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-xs"
-  >
+                  to="/register"
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-xs"
+                >
                   Start Registration
                 </Link>
               </div>
@@ -1058,9 +1298,7 @@ export default function LandingPage() {
           </div>
         </div>}
 
-      {
-    /* MODAL 3: Get App Modal */
-  }
+      {/* MODAL 3: Get App Modal */}
       {showGetAppModal && <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-5">
             <div className="flex items-start justify-between">
@@ -1069,20 +1307,20 @@ export default function LandingPage() {
                   <Smartphone className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-[#091524]">Get BorderGlow App</h3>
+                  <h3 className="font-bold text-base text-[#091524]">Get Border Export Hub App</h3>
                   <p className="text-xs text-slate-500">Android & iOS Cross-Border Edition</p>
                 </div>
               </div>
               <button
-    onClick={() => setShowGetAppModal(false)}
-    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
-  >
+                onClick={() => setShowGetAppModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              BorderGlow Mobile provides offline-tolerant messaging, voice notes at border crossings, live GPS location dispatch, and document camera uploads.
+              Border Export Hub Mobile provides offline-tolerant messaging, voice notes at border crossings, live GPS location dispatch, and document camera uploads.
             </p>
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center space-y-2">

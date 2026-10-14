@@ -179,7 +179,7 @@ export default function VerificationPage() {
                 Commercial Verification: Process & Requirements
               </h1>
               <p className="text-xs text-[#64748B] mt-1">
-                BorderGlow enforces rigorous identity verification for cross-border traders while guaranteeing zero public exposure of sensitive identity scans.
+                Border Export Hub enforces rigorous identity verification for cross-border traders while guaranteeing zero public exposure of sensitive identity scans.
               </p>
             </div>
 
@@ -292,7 +292,7 @@ export default function VerificationPage() {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="text-blue-600 font-bold text-base mb-1.5">01. Submit Identity</div>
                 <p className="text-slate-600 leading-relaxed">
-                  Sign in to your BorderGlow account and upload clear scans of your national identity and business credentials.
+                  Sign in to your Border Export Hub account and upload clear scans of your national identity and business credentials.
                 </p>
               </div>
 
@@ -496,14 +496,14 @@ export default function VerificationPage() {
                 <StatusBadge status={status} />
               </div>
               <p className="text-[11px] text-slate-500 mt-2">
-                {isVerified ? "Your trade business is fully approved for commercial bilateral deal contracts and customs manifests." : "Documents under review by BorderGlow trade compliance bureau."}
+                {isVerified ? "Your trade business is fully approved for commercial bilateral deal contracts and customs manifests." : "Documents under review by Border Export Hub trade compliance bureau."}
               </p>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
               <div className="text-xs text-slate-500 font-medium">Compliance Auditor Notes</div>
               <p className="text-xs text-[#172B4D] font-medium mt-2">
-                {data?.verificationNotes || "Awaiting review by BorderGlow compliance department."}
+                {data?.verificationNotes || "Awaiting review by Border Export Hub compliance department."}
               </p>
             </div>
 
