@@ -180,9 +180,9 @@ export default function TransportPage() {
                   </div>
 
                     <Link
-    to={`/conversations?newDeal=transport&id=${o.id}&targetUserId=${o.driverId}&title=${encodeURIComponent(o.title)}`}
-    className="inline-flex items-center gap-1 bg-[#2563EB] hover:bg-blue-700 text-white font-medium text-xs px-3.5 py-1.5 rounded-lg transition"
-  >
+                      to={`/conversations?newDeal=transport&id=${o._id || o.id}&targetUserId=${o.driverId?._id || o.driverId?.id || (typeof o.driverId === 'string' ? o.driverId : '')}&title=${encodeURIComponent(o.title)}`}
+                      className="inline-flex items-center gap-1 bg-[#2563EB] hover:bg-blue-700 text-white font-medium text-xs px-3.5 py-1.5 rounded-lg transition"
+                    >
                       <Truck className="w-3.5 h-3.5" />
                       Get Offer / Book Vehicle
                     </Link>
@@ -226,7 +226,13 @@ export default function TransportPage() {
                     <EditableSelect
     label="Origin / Departure Corridor"
     value={originCorridor}
-    onChange={setOriginCorridor}
+    onChange={(val) => {
+      setOriginCorridor(val);
+      if (val.includes("Pakistan")) setCurrency("PKR");
+      else if (val.includes("Iran")) setCurrency("IRR");
+      else if (val.includes("Afghanistan")) setCurrency("AFN");
+      else if (val.includes("China")) setCurrency("CNY");
+    }}
     options={[
       "Quetta, Pakistan",
       "Karachi Port, Pakistan",

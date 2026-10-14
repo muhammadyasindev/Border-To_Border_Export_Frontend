@@ -18,6 +18,8 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronDown,
+  Check,
   MessageCircle,
   Mail,
 } from "lucide-react";
@@ -34,32 +36,30 @@ export function AppShell({ children }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [supportModalOpen, setSupportModalOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "Quotation Received",
-      description: "Indus Agri submitted a new price on your Basmati demand.",
-      read: false,
-      time: "10m ago",
-    },
-    {
-      id: 2,
-      title: "Shipment In Transit",
-      description: "Reefer truck crossed Taftan zero-point customs.",
-      read: false,
-      time: "25m ago",
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const fetchNotifications = async () => {
+    try {
+      const res = await safeFetch("/api/notifications");
+      if (res.ok && Array.isArray(res.data)) {
+        setNotifications(res.data);
+      }
+    } catch (e) {}
   };
 
-  const handleClearNotifications = () => {
+  const unreadCount = notifications.filter((n) => !n.isRead && !n.read).length;
+
+  const handleMarkAllRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true, read: true })));
+    await safeFetch("/api/notifications/mark-all-read", { method: "POST" }).catch(() => null);
+  };
+
+  const handleClearNotifications = async () => {
     setNotifications([]);
+    await safeFetch("/api/notifications/clear", { method: "DELETE" }).catch(() => null);
   };
+
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
 
   // Fetch current authenticated user
   const fetchUser = async () => {
@@ -67,26 +67,75 @@ export function AppShell({ children }) {
       const res = await safeFetch("/api/auth/me");
       if (res.ok && res.data?.user) {
         setCurrentUser(res.data.user);
+        if (res.data.user.role) {
+          localStorage.setItem("user_role", res.data.user.role);
+        }
       } else {
-        setCurrentUser(null);
+        const cachedRole = localStorage.getItem("user_role");
+        const cachedName = localStorage.getItem("user_fullName");
+        if (cachedRole) {
+          setCurrentUser({ role: cachedRole, fullName: cachedName || "Muhammad Yasin" });
+        } else {
+          setCurrentUser(null);
+        }
       }
     } catch (err) {
       console.warn("User auth status check:", err);
+      const cachedRole = localStorage.getItem("user_role");
+      const cachedName = localStorage.getItem("user_fullName");
+      if (cachedRole) {
+        setCurrentUser({ role: cachedRole, fullName: cachedName || "Muhammad Yasin" });
+      }
     } finally {
       setLoadingUser(false);
     }
   };
 
+  const handleSwitchRole = async (newRole) => {
+    setRoleMenuOpen(false);
+    try {
+      localStorage.setItem("user_role", newRole);
+      setCurrentUser((prev) => ({ ...(prev || {}), role: newRole }));
+      await safeFetch("/api/auth/switch-role", {
+        method: "POST",
+        body: JSON.stringify({ role: newRole }),
+      });
+      window.location.reload();
+    } catch (err) {
+      console.error("Role switch error:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUser();
+    fetchNotifications();
   }, [pathname]);
 
-  const role = currentUser?.role || "importer";
+  const cachedRole = localStorage.getItem("user_role");
+  const role = currentUser?.role || cachedRole || "exporter";
 
-  // Navigation items matching Reference UI
+  // Navigation items matching Reference UI and active role
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
+    ...(role === "importer"
+      ? [{ name: "My Demands", href: "/demands", icon: FileText }]
+      : []),
+    ...(role === "exporter"
+      ? [
+          { name: "My Offers & Products", href: "/products", icon: ShoppingBag },
+          { name: "Buyer Demands", href: "/marketplace?tab=demands", icon: FileText },
+        ]
+      : []),
+    ...(role === "driver"
+      ? [
+          { name: "My Transport Offers", href: "/transport", icon: Truck },
+          { name: "Freight Cargo Demands", href: "/marketplace?tab=demands", icon: FileText },
+        ]
+      : []),
+    ...(role !== "driver"
+      ? [{ name: "Corridor Logistics", href: "/transport", icon: Truck }]
+      : []),
     { name: "My Deals", href: "/conversations?view=deals", icon: Handshake, badge: "3" },
     { name: "Messages", href: "/conversations", icon: MessageSquare, badge: "5" },
     { name: "Shipments", href: "/shipments", icon: Truck },
@@ -102,13 +151,17 @@ export function AppShell({ children }) {
   ];
 
   const isItemActive = (href) => {
+    const currentSearch = location.search || "";
     if (href.includes("?")) {
       const [path, query] = href.split("?");
-      return pathname === path && location.search === `?${query}`;
+      return pathname === path && currentSearch === `?${query}`;
     }
-    if (href === "/conversations") {
-      if (location.search) return false;
-      return pathname === "/conversations";
+    // If href does not have query params, do not activate when current URL has active tab/view query
+    if (currentSearch && currentSearch.length > 1) {
+      return false;
+    }
+    if (href.startsWith("/profile")) {
+      return pathname.startsWith("/profile");
     }
     return pathname === href;
   };
@@ -282,24 +335,43 @@ export function AppShell({ children }) {
                     </div>
                   ) : (
                     <div className="space-y-2 text-slate-600">
-                      {notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          className={`p-2.5 rounded-xl border transition ${
-                            n.read
-                              ? "bg-slate-50/70 border-slate-200/80 text-slate-500"
-                              : "bg-emerald-50/70 border-emerald-200/90 text-slate-700"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <strong className={`block ${n.read ? "text-slate-700 font-medium" : "text-emerald-950 font-bold"}`}>
-                              {n.title}
-                            </strong>
-                            <span className="text-[10px] text-slate-400">{n.time}</span>
+                      {notifications.map((n) => {
+                        const isRead = n.isRead || n.read;
+                        const content = (
+                          <div
+                            key={n._id || n.id}
+                            className={`p-2.5 rounded-xl border transition ${
+                              isRead
+                                ? "bg-slate-50/70 border-slate-200/80 text-slate-500"
+                                : "bg-emerald-50/70 border-emerald-200/90 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <strong className={`block ${isRead ? "text-slate-700 font-medium" : "text-emerald-950 font-bold"}`}>
+                                {n.title}
+                              </strong>
+                              <span className="text-[10px] text-slate-400">
+                                {n.createdAt ? new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : n.time || "Just now"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs">{n.message || n.description}</p>
                           </div>
-                          <p className="mt-0.5 text-xs">{n.description}</p>
-                        </div>
-                      ))}
+                        );
+
+                        if (n.link) {
+                          return (
+                            <Link
+                              key={n._id || n.id}
+                              to={n.link}
+                              onClick={() => setNotificationsOpen(false)}
+                              className="block hover:opacity-95"
+                            >
+                              {content}
+                            </Link>
+                          );
+                        }
+                        return content;
+                      })}
                     </div>
                   )}
                 </div>
@@ -316,13 +388,13 @@ export function AppShell({ children }) {
               <span className="hidden xl:inline text-xs font-semibold text-slate-600">Support</span>
             </button>
 
-            {/* User Profile Pill */}
-            <div className="flex items-center gap-3 pl-2 sm:pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center ring-2 ring-emerald-500/20 overflow-hidden">
+            {/* User Profile Pill with Role Switcher Dropdown */}
+            <div className="relative flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center ring-2 ring-emerald-500/20 overflow-hidden shrink-0">
                 {currentUser?.avatarUrl ? (
                   <img src={currentUser.avatarUrl} alt={currentUser.fullName} className="w-full h-full object-cover" />
                 ) : (
-                  <span>{currentUser?.fullName ? currentUser.fullName.charAt(0) : "A"}</span>
+                  <span>{currentUser?.fullName ? currentUser.fullName.charAt(0) : "M"}</span>
                 )}
               </div>
 
@@ -330,10 +402,69 @@ export function AppShell({ children }) {
                 <span className="text-xs font-bold text-slate-900 leading-tight">
                   {currentUser?.fullName || "Muhammad Yasin"}
                 </span>
-                <span className="text-[11px] text-slate-500 font-medium capitalize">
-                  {currentUser?.role || "Importer"}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setRoleMenuOpen(!roleMenuOpen)}
+                  className="flex items-center gap-1 mt-0.5 group cursor-pointer"
+                  title="Click to switch your corridor role"
+                >
+                  <span className={`px-1.5 py-0.5 rounded font-extrabold uppercase text-[9px] tracking-wide transition ${
+                    role === "exporter"
+                      ? "bg-blue-100 text-blue-700 group-hover:bg-blue-200"
+                      : role === "driver"
+                      ? "bg-amber-100 text-amber-800 group-hover:bg-amber-200"
+                      : "bg-emerald-100 text-emerald-800 group-hover:bg-emerald-200"
+                  }`}>
+                    {role === "driver" ? "Transporter / Driver" : role}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-slate-700 transition" />
+                </button>
               </div>
+
+              {/* Role Switcher Dropdown */}
+              {roleMenuOpen && (
+                <div className="absolute top-11 right-0 w-60 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                    Select Your Role Workspace
+                  </div>
+                  <button
+                    onClick={() => handleSwitchRole("exporter")}
+                    className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition ${
+                      role === "exporter" ? "bg-blue-50 text-blue-800 font-bold" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-xs">Exporter</div>
+                      <div className="text-[10px] text-slate-500">Post commodities & fulfill buyer demands</div>
+                    </div>
+                    {role === "exporter" && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                  </button>
+                  <button
+                    onClick={() => handleSwitchRole("importer")}
+                    className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition ${
+                      role === "importer" ? "bg-emerald-50 text-emerald-800 font-bold" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-xs">Importer</div>
+                      <div className="text-[10px] text-slate-500">Publish demands & import products</div>
+                    </div>
+                    {role === "importer" && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                  </button>
+                  <button
+                    onClick={() => handleSwitchRole("driver")}
+                    className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition ${
+                      role === "driver" ? "bg-amber-50 text-amber-900 font-bold" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold text-xs">Transporter / Driver</div>
+                      <div className="text-[10px] text-slate-500">Publish freight offers & haul cargo</div>
+                    </div>
+                    {role === "driver" && <Check className="w-4 h-4 text-amber-700 shrink-0" />}
+                  </button>
+                </div>
+              )}
 
               {/* Logout Button */}
               <button

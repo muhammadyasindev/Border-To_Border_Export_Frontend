@@ -15,7 +15,9 @@ import {
   BORDER_COUNTRIES,
   CORRIDOR_CITIES,
   TRADE_CATEGORIES,
-  TRADE_UNITS
+  TRADE_UNITS,
+  getCitiesForCountry,
+  getCurrencyForCountry
 } from "../lib/constants.js";
 import { safeFetch } from "../lib/api.js";
 export default function ProductsPage() {
@@ -299,7 +301,14 @@ export default function ProductsPage() {
                       <EditableSelect
     label="Origin Country *"
     value={originCountry}
-    onChange={setOriginCountry}
+    onChange={(val) => {
+      setOriginCountry(val);
+      setCurrency(getCurrencyForCountry(val));
+      const available = getCitiesForCountry(val);
+      if (available.length > 0) {
+        setOriginCity(available[0].value);
+      }
+    }}
     options={BORDER_COUNTRIES}
   />
                     </div>
@@ -309,7 +318,7 @@ export default function ProductsPage() {
     label="Origin City / Hub *"
     value={originCity}
     onChange={setOriginCity}
-    options={CORRIDOR_CITIES}
+    options={getCitiesForCountry(originCountry)}
   />
                     </div>
                   </div>

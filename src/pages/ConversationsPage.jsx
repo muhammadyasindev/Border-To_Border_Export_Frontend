@@ -25,7 +25,17 @@ import {
   Pause,
   Trash2,
   Image as ImageIcon,
-  Lock
+  Lock,
+  Handshake,
+  Check,
+  CheckCircle2,
+  Coins,
+  Package,
+  Truck,
+  ShoppingBag,
+  Tag,
+  ChevronRight,
+  ShieldCheck
 } from "lucide-react";
 import { buildApiUrl, getAuthToken } from "../lib/api.js";
 
@@ -88,59 +98,144 @@ export default function ConversationsPage() {
   const localStreamRef = useRef(null);
   const callTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Proposal & Negotiation State
+  const [showProposalModal, setShowProposalModal] = useState(false);
+  const [proposalPrice, setProposalPrice] = useState("");
+  const [proposalQuantity, setProposalQuantity] = useState("");
+  const [proposalCurrency, setProposalCurrency] = useState("USD");
+  const [proposalDeliveryDate, setProposalDeliveryDate] = useState("");
+  const [proposalRoute, setProposalRoute] = useState("");
+  const [proposalPaymentTerms, setProposalPaymentTerms] = useState("Letter of Credit / Border Escrow");
+  const [proposalNotes, setProposalNotes] = useState("");
+  const [submittingProposal, setSubmittingProposal] = useState(false);
+  const [proposalSuccessMsg, setProposalSuccessMsg] = useState("");
+
   useEffect(() => {
-    authFetch("/api/auth/me").then((r) => r.json()).then((d) => {
-      if (d.user) setCurrentUser(d.user);
-    }).catch((e) => console.error(e));
+    authFetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setCurrentUser(d.user);
+          initDealRooms();
+        } else {
+          setLoadingList(false);
+        }
+      })
+      .catch(() => {
+        setLoadingList(false);
+      });
   }, []);
+
   const initDealRooms = async () => {
     try {
       const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
-      const targetUserId = params.get("targetUserId");
+      const rawTarget = params.get("targetUserId");
+      const targetUserId =
+        rawTarget && rawTarget !== "[object Object]" && rawTarget !== "undefined" && rawTarget !== "null"
+          ? rawTarget
+          : null;
       const dealId = params.get("id");
       const newDeal = params.get("newDeal");
       const dealTitle = params.get("title");
       const res = await authFetch("/api/conversations");
       const data = await res.json();
-      const list = data.conversations || [];
+      const list = data.conversations || (Array.isArray(data) ? data : []);
       setConversations(list);
-      if (targetUserId) {
-        const targetNum = Number(targetUserId);
-        const existing = list.find(
-          (c) => c.participants?.some((p) => p.userId === targetNum || p.id === targetNum)
-        );
-        if (existing) {
-          setSelectedConvId(existing.id);
-        } else {
-          try {
-            const roleForCounterparty = newDeal === "transport" ? "driver" : newDeal === "product" ? "exporter" : "importer";
-            const roleForMe = newDeal === "transport" ? "importer" : currentUser?.role || "importer";
-            const createRes = await authFetch("/api/conversations", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: dealTitle ? `${newDeal === "transport" ? "Transport" : newDeal === "product" ? "Product" : "Demand"}: ${decodeURIComponent(dealTitle)}` : "Commercial Deal Room",
-                targetUserId: targetNum,
-                targetUserRole: roleForCounterparty,
-                transportOfferId: newDeal === "transport" && dealId ? Number(dealId) : null,
-                productId: newDeal === "product" && dealId ? Number(dealId) : null,
-                demandId: newDeal === "demand" && dealId ? Number(dealId) : null,
-                initialMessage: dealTitle ? `Hello! I would like to negotiate and book for: "${decodeURIComponent(dealTitle)}". Please share rates and available schedule.` : "Hello! I am interested in collaborating on this cross-border trade transaction."
-              })
-            });
-            const createData = await createRes.json();
-            if (createData.conversation) {
-              setSelectedConvId(createData.conversation.id);
-              const freshRes = await authFetch("/api/conversations");
-              const freshData = await freshRes.json();
-              setConversations(freshData.conversations || []);
+
+      // Check for existing conversation matching dealId first
+      let existing = null;
+      if (dealId) {
+        existing = list.find((c) => {
+          return (
+            String(c.productId?._id || c.productId) === String(dealId) ||
+            String(c.productOfferId?._id || c.productOfferId) === String(dealId) ||
+            String(c.demandId?._id || c.demandId) === String(dealId) ||
+            String(c.transportOfferId?._id || c.transportOfferId) === String(dealId) ||
+            String(c.transportRequestId?._id || c.transportRequestId) === String(dealId)
+          );
+        });
+      }
+
+      // If not found by dealId, check by targetUserId
+      if (!existing && targetUserId) {
+        existing = list.find((c) => {
+          return c.participants?.some(
+            (p) => String(p.userId?._id || p.userId || p.id) === String(targetUserId)
+          );
+        });
+      }
+
+      if (existing) {
+        const eId = existing._id || existing.id;
+        setSelectedConvId(eId);
+        loadActiveConversation(eId);
+        if (typeof window !== "undefined" && (targetUserId || dealId)) {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      } else if (dealId || targetUserId) {
+        try {
+          const roleForCounterparty =
+            newDeal === "transport" || newDeal === "transport_request"
+              ? "driver"
+              : newDeal === "product" || newDeal === "product_offer"
+              ? "exporter"
+              : "importer";
+
+          const createRes = await authFetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: dealTitle
+                ? `${
+                    newDeal === "transport"
+                      ? "Haulage Offer"
+                      : newDeal === "transport_request"
+                      ? "Transport Request"
+                      : newDeal === "product_offer"
+                      ? "Special Offer"
+                      : newDeal === "product"
+                      ? "Product"
+                      : "Demand"
+                  }: ${decodeURIComponent(dealTitle)}`
+                : "Commercial Deal Room",
+              recipientId: targetUserId || undefined,
+              targetUserId: targetUserId || undefined,
+              targetUserRole: roleForCounterparty,
+              dealSubjectType: newDeal || "general",
+              transportOfferId: newDeal === "transport" && dealId ? dealId : null,
+              transportRequestId: newDeal === "transport_request" && dealId ? dealId : null,
+              productId: newDeal === "product" && dealId ? dealId : null,
+              productOfferId: newDeal === "product_offer" && dealId ? dealId : null,
+              demandId: newDeal === "demand" && dealId ? dealId : null,
+              initialMessage: dealTitle
+                ? `Hello! I would like to initiate trade negotiations for: "${decodeURIComponent(dealTitle)}".`
+                : "Hello! I am interested in collaborating on this cross-border trade transaction."
+            })
+          });
+          const createData = await createRes.json();
+          const newConvId =
+            createData._id ||
+            createData.id ||
+            createData.conversation?._id ||
+            createData.conversation?.id;
+          if (newConvId) {
+            setSelectedConvId(newConvId);
+            loadActiveConversation(newConvId);
+            const freshRes = await authFetch("/api/conversations");
+            const freshData = await freshRes.json();
+            setConversations(freshData.conversations || (Array.isArray(freshData) ? freshData : []));
+            if (typeof window !== "undefined") {
+              window.history.replaceState({}, "", window.location.pathname);
             }
-          } catch (err) {
-            console.error("Error creating deal room:", err);
           }
+        } catch (err) {
+          console.error("Error creating deal room:", err);
         }
       } else if (list.length > 0 && !selectedConvId) {
-        setSelectedConvId(list[0].id);
+        const firstId = list[0]._id || list[0].id;
+        setSelectedConvId(firstId);
+        loadActiveConversation(firstId);
       }
     } catch (e) {
       console.error(e);
@@ -148,9 +243,73 @@ export default function ConversationsPage() {
       setLoadingList(false);
     }
   };
-  useEffect(() => {
-    initDealRooms();
-  }, []);
+
+  const handleSubmitProposal = async (e) => {
+    e.preventDefault();
+    if (!selectedConvId) return;
+    setSubmittingProposal(true);
+    try {
+      const res = await authFetch(`/api/conversations/${selectedConvId}/proposal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          price: Number(proposalPrice),
+          quantity: Number(proposalQuantity),
+          currency: proposalCurrency,
+          deliveryDate: proposalDeliveryDate || "Immediate corridor dispatch",
+          route: proposalRoute || "Direct corridor transit",
+          paymentTerms: proposalPaymentTerms || "Letter of Credit / Border Escrow",
+          notes: proposalNotes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit quotation");
+      setProposalSuccessMsg("Quotation / Counteroffer Submitted Successfully!");
+      setTimeout(() => {
+        setShowProposalModal(false);
+        setProposalSuccessMsg("");
+        setProposalPrice("");
+        setProposalQuantity("");
+        setProposalNotes("");
+        loadActiveConversation(selectedConvId);
+        initDealRooms();
+      }, 1000);
+    } catch (err) {
+      alert(err.message || "Could not submit quotation");
+    } finally {
+      setSubmittingProposal(false);
+    }
+  };
+
+  const handleRespondProposal = async (action) => {
+    if (!selectedConvId) return;
+    try {
+      const res = await authFetch(`/api/conversations/${selectedConvId}/proposal/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to respond to proposal");
+      await loadActiveConversation(selectedConvId);
+      await initDealRooms();
+    } catch (err) {
+      alert(err.message || "Failed to update quotation");
+    }
+  };
+
+  const openCounterModal = () => {
+    const cp = activeConvData?.conversation?.currentProposal;
+    if (cp) {
+      setProposalPrice(cp.price ? String(cp.price) : "");
+      setProposalQuantity(cp.quantity ? String(cp.quantity) : "");
+      setProposalCurrency(cp.currency || "USD");
+      setProposalDeliveryDate(cp.deliveryDate || "");
+      setProposalRoute(cp.route || "");
+      setProposalPaymentTerms(cp.paymentTerms || "");
+    }
+    setShowProposalModal(true);
+  };
   const loadActiveConversation = async (id) => {
     setLoadingActive(true);
     try {
@@ -378,7 +537,7 @@ export default function ConversationsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "invite_participant",
-          newParticipantId: Number(selectedInviteUserId),
+          newParticipantId: selectedInviteUserId,
           newParticipantRole: inviteRole
         })
       });
@@ -662,30 +821,44 @@ export default function ConversationsPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-            {loadingList ? <div className="p-4 text-xs text-slate-400">Loading deal rooms...</div> : conversations.length > 0 ? conversations.map((conv) => {
-    const isSelected = selectedConvId === conv.id;
-    const participants = conv.participants || [];
-    return <button
-      key={conv.id}
-      onClick={() => setSelectedConvId(conv.id)}
-      className={`w-full text-left p-3.5 transition flex flex-col gap-1 ${isSelected ? "bg-blue-50/70 border-l-4 border-blue-600" : "hover:bg-slate-100/70"}`}
-    >
+            {loadingList ? (
+              <div className="p-4 text-xs text-slate-400">Loading deal rooms...</div>
+            ) : conversations.length > 0 ? (
+              conversations.map((conv) => {
+                const cId = conv._id || conv.id;
+                const isSelected = String(selectedConvId) === String(cId);
+                const participants = conv.participants || [];
+                return (
+                  <button
+                    key={cId}
+                    onClick={() => setSelectedConvId(cId)}
+                    className={`w-full text-left p-3.5 transition flex flex-col gap-1 ${
+                      isSelected
+                        ? "bg-blue-50/70 border-l-4 border-blue-600"
+                        : "hover:bg-slate-100/70"
+                    }`}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-[#142B4A] line-clamp-1">
                         {conv.title}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        {new Date(conv.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(conv.updatedAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                       <span className="capitalize font-medium text-slate-700">
-                        {participants.map((p) => p.fullName?.split(" ")[0] || "Trader").join(", ")}
+                        {participants.map((p) => (p.userId?.fullName || p.fullName || "Trader").split(" ")[0]).join(", ")}
                       </span>
-                      {participants.length > 2 && <span className="bg-indigo-100 text-indigo-700 font-bold px-1 rounded text-[9px]">
+                      {participants.length > 2 && (
+                        <span className="bg-indigo-100 text-indigo-700 font-bold px-1 rounded text-[9px]">
                           3-WAY ROOM
-                        </span>}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between mt-1">
@@ -694,105 +867,210 @@ export default function ConversationsPage() {
                       </p>
                       <StatusBadge status={conv.dealStatus} size="sm" />
                     </div>
-                  </button>;
-  }) : <div className="p-6 text-center text-xs text-slate-400">
-                No active deal rooms found. Click "Get Offer / Book Vehicle" to start a transport deal!
-              </div>}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-400">
+                No active deal rooms found. Browse the Marketplace to initiate deals!
+              </div>
+            )}
           </div>
         </div>
 
-        {
-    /* Center Panel: Active Deal Chat & WebRTC Calling */
-  }
-        {selectedConvId && activeConvData ? <div className="flex-1 flex flex-col bg-white relative">
-            {
-    /* Header of Active Deal */
-  }
+        {/* Center Panel: Active Deal Chat & WebRTC Calling */}
+        {selectedConvId && activeConvData ? (
+          <div className="flex-1 flex flex-col bg-white relative">
+            {/* Header of Active Deal */}
             <div className="p-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-[#142B4A]">
-                    {activeConvData.conversation?.title}
-                  </h3>
-                  <StatusBadge status={activeConvData.conversation?.dealStatus} size="sm" />
-                </div>
-                <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                  <span>Authorized Participants:</span>
-                  <div className="flex items-center gap-1 font-medium text-slate-700 flex-wrap">
-                    {activeConvData.participants?.map((p) => <span key={p.id} className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
-                        {p.fullName} ({p.roleInDeal?.toUpperCase() || "TRADER"})
-                      </span>)}
-                  </div>
-                </div>
-              </div>
+              {(() => {
+                const currentUserId = String(currentUser?._id || currentUser?.id || "");
+                const allParticipants = activeConvData.participants || [];
+                const counterparts = allParticipants.filter((p) => {
+                  const pUid = String(p.userId?._id || p.userId?.id || p.userId || p.id || "");
+                  return pUid && pUid !== currentUserId;
+                });
+                const primaryCp = counterparts[0]?.userId || (counterparts[0] ? counterparts[0] : null);
+                const isTripartite = allParticipants.length > 2;
 
-              {
-    /* Deal Action Controls & Voice/Video Call Buttons */
-  }
-              <div className="flex items-center gap-2">
-                {
-    /* Voice Call Button */
-  }
+                const getRoleBadge = (role) => {
+                  const r = (role || "").toLowerCase();
+                  if (r === "exporter") {
+                    return <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">EXPORTER</span>;
+                  }
+                  if (r === "importer") {
+                    return <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">IMPORTER</span>;
+                  }
+                  if (r === "driver" || r === "transporter") {
+                    return <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">DRIVER / CARRIER</span>;
+                  }
+                  return <span className="text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">TRADER</span>;
+                };
+
+                return (
+                  <div className="flex items-center gap-3">
+                    {/* Avatar(s) */}
+                    <div className="flex -space-x-2 shrink-0">
+                      {counterparts.length > 0 ? (
+                        counterparts.slice(0, 2).map((cp, idx) => {
+                          const u = cp.userId || cp;
+                          return u.avatarUrl ? (
+                            <img
+                              key={idx}
+                              src={u.avatarUrl}
+                              alt={u.fullName || "Trader"}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs"
+                            />
+                          ) : (
+                            <div
+                              key={idx}
+                              className={`w-10 h-10 rounded-full font-bold text-xs text-white flex items-center justify-center border-2 border-white shadow-xs ${
+                                idx === 0 ? "bg-blue-600" : "bg-emerald-600"
+                              }`}
+                            >
+                              {(u.fullName || "T").charAt(0).toUpperCase()}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-400 font-bold text-xs text-white flex items-center justify-center border-2 border-white">
+                          BG
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Identity & Deal Metadata */}
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {counterparts.length === 1 && primaryCp && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-sm text-[#142B4A]">
+                              {primaryCp.fullName || "Trade Partner"}
+                            </span>
+                            {(primaryCp.verificationStatus === "verified" || primaryCp.isVerified) && (
+                              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" title="Verified Trader" />
+                            )}
+                            {primaryCp.businessName && (
+                              <span className="text-xs text-slate-500 font-medium">
+                                • {primaryCp.businessName}
+                              </span>
+                            )}
+                            {getRoleBadge(counterparts[0]?.roleInDeal || primaryCp.role)}
+                          </div>
+                        )}
+
+                        {isTripartite && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-sm text-[#142B4A]">
+                              Tripartite Deal Room
+                            </span>
+                            <span className="bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                              3-WAY DEAL
+                            </span>
+                          </div>
+                        )}
+
+                        <StatusBadge status={activeConvData.conversation?.dealStatus} size="sm" />
+                      </div>
+
+                      {/* Subtitle with Conversation Title & Authorized Participants */}
+                      <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="font-semibold text-slate-700 truncate max-w-[280px]">
+                          {activeConvData.conversation?.title}
+                        </span>
+                        <span>•</span>
+                        <span className="text-[11px]">
+                          Participants ({allParticipants.length}):{" "}
+                          {allParticipants.map((p) => {
+                            const u = p.userId || p;
+                            const isCurrentUser = String(u._id || u.id) === currentUserId;
+                            return `${u.fullName || "Trader"} (${(p.roleInDeal || u.role || "Partner").toUpperCase()}${isCurrentUser ? " - You" : ""})`;
+                          }).join(" | ")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Deal Action Controls & Voice/Video Call Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-    type="button"
-    onClick={() => startCall("voice")}
-    disabled={callState !== "idle"}
-    className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition"
-    title="Start encrypted 1-to-1 WebRTC voice call"
-  >
+                  type="button"
+                  onClick={() => {
+                    const cp = activeConvData?.conversation?.currentProposal;
+                    if (cp) {
+                      setProposalPrice(cp.price ? String(cp.price) : "");
+                      setProposalQuantity(cp.quantity ? String(cp.quantity) : "");
+                      setProposalCurrency(cp.currency || "USD");
+                      setProposalDeliveryDate(cp.deliveryDate || "");
+                      setProposalRoute(cp.route || "");
+                      setProposalPaymentTerms(cp.paymentTerms || "");
+                    }
+                    setShowProposalModal(true);
+                  }}
+                  className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-xs cursor-pointer"
+                  title="Submit a formal commercial quotation or counteroffer"
+                >
+                  <Handshake className="w-3.5 h-3.5" />
+                  <span>Quotation / Deal</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => startCall("voice")}
+                  disabled={callState !== "idle"}
+                  className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition"
+                  title="Start encrypted 1-to-1 WebRTC voice call"
+                >
                   <Phone className="w-3.5 h-3.5 text-emerald-600" />
                   Voice Call
                 </button>
 
-                {
-    /* Video Call Button */
-  }
                 <button
-    type="button"
-    onClick={() => startCall("video")}
-    disabled={callState !== "idle"}
-    className="inline-flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition"
-    title="Start 1-to-1 WebRTC video call with local/remote preview"
-  >
+                  type="button"
+                  onClick={() => startCall("video")}
+                  disabled={callState !== "idle"}
+                  className="inline-flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition"
+                  title="Start 1-to-1 WebRTC video call with local/remote preview"
+                >
                   <Video className="w-3.5 h-3.5 text-blue-600" />
                   Video Call
                 </button>
 
                 <button
-    onClick={() => {
-      setShowInviteModal(true);
-      setInviteRole("exporter");
-    }}
-    className="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition"
-    title="Invite exporter, importer or transporter to this room"
-  >
+                  onClick={() => {
+                    setShowInviteModal(true);
+                    setInviteRole("exporter");
+                  }}
+                  className="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition"
+                  title="Invite exporter, importer or transporter to this room"
+                >
                   <UserPlus className="w-3.5 h-3.5" />
                   Invite Partner
                 </button>
 
                 <button
-    onClick={() => setShowStatusModal(true)}
-    className="inline-flex items-center gap-1 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition"
-  >
+                  onClick={() => setShowStatusModal(true)}
+                  className="inline-flex items-center gap-1 bg-[#2563EB] hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition"
+                >
                   Status
                 </button>
               </div>
             </div>
 
-            {
-    /* Tripartite Workflow Progress Bar */
-  }
+            {/* Tripartite Workflow Progress Bar */}
             <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 overflow-x-auto">
               <span className={activeConvData.conversation?.dealStatus === "inquiry" ? "font-bold text-blue-700" : ""}>
                 1. Inquiry
               </span>
               <span>→</span>
-              <span className={activeConvData.conversation?.dealStatus === "terms_agreed" ? "font-bold text-blue-700" : ""}>
-                2. Terms Agreed
+              <span className={activeConvData.conversation?.dealStatus === "quotation_exchanged" || activeConvData.conversation?.dealStatus === "terms_agreed" ? "font-bold text-blue-700" : ""}>
+                2. Quotation / Negotiation
               </span>
               <span>→</span>
-              <span className={activeConvData.conversation?.dealStatus === "transporter_invited" ? "font-bold text-blue-700" : ""}>
-                3. Transporter Added
+              <span className={activeConvData.conversation?.dealStatus === "accepted" ? "font-bold text-emerald-700" : ""}>
+                3. Offer Accepted
               </span>
               <span>→</span>
               <span className={activeConvData.conversation?.dealStatus === "booked" ? "font-bold text-blue-700" : ""}>
@@ -803,6 +1081,201 @@ export default function ConversationsPage() {
                 5. In Transit (GPS Active)
               </span>
             </div>
+
+            {/* Deal Subject Context Banner */}
+            {(activeConvData.conversation?.productId ||
+              activeConvData.conversation?.productOfferId ||
+              activeConvData.conversation?.demandId ||
+              activeConvData.conversation?.transportOfferId ||
+              activeConvData.conversation?.transportRequestId) && (
+              <div className="px-4 py-2.5 bg-gradient-to-r from-blue-50/80 via-slate-50 to-indigo-50/80 border-b border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                    {activeConvData.conversation?.transportOfferId || activeConvData.conversation?.transportRequestId ? (
+                      <Truck className="w-4 h-4" />
+                    ) : activeConvData.conversation?.demandId ? (
+                      <ShoppingBag className="w-4 h-4" />
+                    ) : (
+                      <Package className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 truncate">
+                        {activeConvData.conversation.productId?.title ||
+                          activeConvData.conversation.productOfferId?.title ||
+                          activeConvData.conversation.demandId?.title ||
+                          activeConvData.conversation.transportOfferId?.title ||
+                          activeConvData.conversation.transportRequestId?.title}
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-blue-100 text-blue-800">
+                        {activeConvData.conversation.dealSubjectType || "Deal"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                      {activeConvData.conversation.productId && (
+                        <span>
+                          Origin: <strong>{activeConvData.conversation.productId.originCity}, {activeConvData.conversation.productId.originCountry}</strong> • Asking: <strong className="text-emerald-700">{activeConvData.conversation.productId.currency} {activeConvData.conversation.productId.pricePerUnit}</strong>
+                        </span>
+                      )}
+                      {activeConvData.conversation.productOfferId && (
+                        <span>
+                          Promo Price: <strong className="text-rose-700">{activeConvData.conversation.productOfferId.currency} {activeConvData.conversation.productOfferId.offerPrice}</strong> (Was {activeConvData.conversation.productOfferId.originalPrice}) • Save {activeConvData.conversation.productOfferId.discountValue}{activeConvData.conversation.productOfferId.discountType === "percentage" ? "%" : ""}
+                        </span>
+                      )}
+                      {activeConvData.conversation.demandId && (
+                        <span>
+                          Destination: <strong>{activeConvData.conversation.demandId.destinationCity}, {activeConvData.conversation.demandId.destinationCountry}</strong> • Target: <strong className="text-emerald-700">{activeConvData.conversation.demandId.currency} {activeConvData.conversation.demandId.targetPrice || "Negotiable"}</strong>
+                        </span>
+                      )}
+                      {activeConvData.conversation.transportOfferId && (
+                        <span>
+                          Corridor: <strong>{activeConvData.conversation.transportOfferId.originCorridor} ➔ {activeConvData.conversation.transportOfferId.destinationCorridor}</strong> • Rate: <strong className="text-purple-700">{activeConvData.conversation.transportOfferId.currency} {activeConvData.conversation.transportOfferId.ratePerKmOrTrip}</strong>
+                        </span>
+                      )}
+                      {activeConvData.conversation.transportRequestId && (
+                        <span>
+                          Route: <strong>{activeConvData.conversation.transportRequestId.pickupCountry} ➔ {activeConvData.conversation.transportRequestId.destinationCountry}</strong> • Cargo: {activeConvData.conversation.transportRequestId.quantity} {activeConvData.conversation.transportRequestId.unit}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Current Proposal / Quotation Negotiation Card */}
+            {activeConvData.conversation?.currentProposal?.price && (
+              <div className="mx-4 my-2.5 p-3.5 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50/70 to-teal-50/50 shadow-2xs space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-emerald-200/60">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                    <span className="font-extrabold text-xs text-emerald-950 uppercase tracking-wide">
+                      {activeConvData.conversation.proposalHistory?.length > 1 ? "Active Counteroffer" : "Active Commercial Quotation"}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        activeConvData.conversation.currentProposal.status === "accepted"
+                          ? "bg-emerald-600 text-white"
+                          : activeConvData.conversation.currentProposal.status === "rejected"
+                          ? "bg-rose-600 text-white"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
+                      }`}
+                    >
+                      {activeConvData.conversation.currentProposal.status}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-slate-500">
+                    Updated: {new Date(activeConvData.conversation.currentProposal.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[10px] text-slate-500 block">Proposed Price</span>
+                    <span className="font-extrabold text-emerald-900 text-sm">
+                      {activeConvData.conversation.currentProposal.currency} {Number(activeConvData.conversation.currentProposal.price).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[10px] text-slate-500 block">Quantity / Volume</span>
+                    <span className="font-bold text-slate-800">
+                      {activeConvData.conversation.currentProposal.quantity} units
+                    </span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[10px] text-slate-500 block">Transit Schedule</span>
+                    <span className="font-medium text-slate-800 truncate block">
+                      {activeConvData.conversation.currentProposal.deliveryDate}
+                    </span>
+                  </div>
+                  <div className="bg-white/80 p-2 rounded-lg border border-emerald-100">
+                    <span className="text-[10px] text-slate-500 block">Payment Terms</span>
+                    <span className="font-medium text-slate-800 truncate block">
+                      {activeConvData.conversation.currentProposal.paymentTerms}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Proposal Decision Buttons & Confirmation Badges */}
+                {(() => {
+                  const cpStatus = activeConvData.conversation.currentProposal.status;
+                  const myId = String(currentUser?._id || currentUser?.id || "");
+                  const confirmations = (activeConvData.conversation.currentProposal.confirmations || []).map((c) => String(c?._id || c));
+                  const hasConfirmed = confirmations.includes(myId);
+                  const isProposer = String(activeConvData.conversation.currentProposal.proposerId) === myId;
+                  const isPendingOrAwaiting = cpStatus === "pending" || cpStatus === "awaiting_confirmation";
+
+                  if (isPendingOrAwaiting) {
+                    if (hasConfirmed || (isProposer && confirmations.length <= 1)) {
+                      return (
+                        <div className="pt-1 flex items-center gap-2 text-[11px] font-semibold text-emerald-800 italic">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>✓ Confirmed by you. Awaiting counterparty confirmation to finalize deal.</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRespondProposal("accept")}
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Accept & Confirm Quotation</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRespondProposal("reject")}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Decline</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={openCounterModal}
+                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs rounded-lg transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <Handshake className="w-3.5 h-3.5" />
+                            <span>Counteroffer</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (cpStatus === "confirmed" || cpStatus === "accepted") {
+                    return (
+                      <div className="text-[11px] text-emerald-900 font-bold bg-emerald-100/80 p-2.5 rounded-lg flex items-center gap-2 border border-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>🎉 DEAL CONFIRMED! Mutual commercial agreement established by all participants. Available inventory and corridor capacity have been updated.</span>
+                      </div>
+                    );
+                  }
+
+                  if (cpStatus === "rejected") {
+                    return (
+                      <div className="text-[11px] text-rose-800 font-semibold bg-rose-100/60 p-2 rounded-lg flex items-center justify-between">
+                        <span>Quotation was declined. You can submit a revised counteroffer anytime.</span>
+                        <button
+                          type="button"
+                          onClick={openCounterModal}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] rounded cursor-pointer"
+                        >
+                          New Counteroffer
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
+              </div>
+            )}
 
             {
     /* Incoming Call Notification Banner */
@@ -844,11 +1317,28 @@ export default function ConversationsPage() {
                       </span>
                     </div>;
     }
-    const isMe = msg.senderId === currentUser?.id;
-    const participant = activeConvData.participants?.find(
-      (p) => p.id === msg.senderId || p.userId === msg.senderId
-    );
-    const senderRole = (msg.senderRole || participant?.roleInDeal || participant?.role || msg.userRole || "Trader").toUpperCase();
+    const senderObjId = String(msg.senderId?._id || msg.senderId?.id || msg.senderId || "");
+    const myId = String(currentUser?._id || currentUser?.id || "");
+    const isMe = Boolean(senderObjId && myId && senderObjId === myId);
+    const participant = activeConvData.participants?.find((p) => {
+      const pId = String(p.userId?._id || p.userId?.id || p.userId || p.id || "");
+      return pId === senderObjId;
+    });
+    const senderDisplayName = isMe
+      ? "You"
+      : msg.senderId?.fullName || msg.senderName || participant?.userId?.fullName || participant?.fullName || "Trader";
+    const senderBusiness = isMe
+      ? (currentUser?.businessName || "")
+      : (msg.senderId?.businessName || participant?.userId?.businessName || "");
+    const senderRole = (
+      msg.senderRole ||
+      msg.senderId?.role ||
+      participant?.roleInDeal ||
+      participant?.userId?.role ||
+      participant?.role ||
+      msg.userRole ||
+      "Trader"
+    ).toUpperCase();
     let parsedAttachments = [];
     if (msg.attachments) {
       try {
@@ -868,11 +1358,14 @@ export default function ConversationsPage() {
       className={`flex items-center gap-1.5 text-[11px] text-slate-500 mb-1 ${isMe ? "flex-row-reverse" : "flex-row"}`}
     >
                       <span className={`font-bold ${isMe ? "text-blue-900" : "text-slate-800"}`}>
-                        {isMe ? "You" : msg.senderName}
+                        {senderDisplayName}
                       </span>
+                      {senderBusiness && !isMe && (
+                        <span className="text-[10px] text-slate-400">({senderBusiness})</span>
+                      )}
 
                       <span
-      className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${senderRole === "DRIVER" ? "bg-amber-100 text-amber-800 border border-amber-200" : senderRole === "IMPORTER" ? "bg-blue-100 text-blue-800 border border-blue-200" : "bg-emerald-100 text-emerald-800 border border-emerald-200"}`}
+      className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${senderRole.includes("DRIVER") ? "bg-amber-100 text-amber-800 border border-amber-200" : senderRole.includes("IMPORTER") ? "bg-blue-100 text-blue-800 border border-blue-200" : "bg-emerald-100 text-emerald-800 border border-emerald-200"}`}
     >
                         {senderRole}
                       </span>
@@ -1272,7 +1765,9 @@ export default function ConversationsPage() {
                   </button>
                 </div>
               </div>}
-          </div> : <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
             <div>
               <MessageSquare className="w-12 h-12 mx-auto text-slate-300 mb-2" />
               <p className="text-sm font-semibold text-slate-600">Select a Deal Room</p>
@@ -1280,7 +1775,8 @@ export default function ConversationsPage() {
                 Negotiate commercial terms, book transport haulage, and conduct voice/video calls.
               </p>
             </div>
-          </div>}
+          </div>
+        )}
 
         {
     /* Modal: Invite Exporter, Importer, or Driver */
@@ -1383,7 +1879,8 @@ export default function ConversationsPage() {
         {
     /* Modal: Update Deal Status */
   }
-        {showStatusModal && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        {showStatusModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
               <h3 className="font-bold text-base text-[#142B4A] mb-1">
                 Update Commercial Deal Status
@@ -1403,9 +1900,11 @@ export default function ConversationsPage() {
                     <option value="quotation_exchanged">Quotation Exchanged</option>
                     <option value="terms_agreed">Terms Agreed</option>
                     <option value="transporter_invited">Transporter Invited</option>
+                    <option value="confirmed">Deal Confirmed</option>
                     <option value="booked">Transport Booked</option>
                     <option value="in_transit">In Transit (Cross-Border)</option>
                     <option value="completed">Deal Completed</option>
+                    <option value="cancelled">Deal Cancelled (Restore Capacity)</option>
                   </select>
                 </div>
 
@@ -1423,20 +1922,154 @@ export default function ConversationsPage() {
 
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button
-    onClick={() => setShowStatusModal(false)}
-    className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
-  >
+                  onClick={() => setShowStatusModal(false)}
+                  className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
                   Cancel
                 </button>
                 <button
-    onClick={handleUpdateStatus}
-    className="px-4 py-2 text-xs font-medium bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg shadow-xs transition"
-  >
+                  onClick={handleUpdateStatus}
+                  className="px-4 py-2 text-xs font-medium bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg shadow-xs transition cursor-pointer"
+                >
                   Confirm Status Update
                 </button>
               </div>
             </div>
-          </div>}
+          </div>
+        )}
+
+        {/* Modal: Quotation & Counteroffer Negotiation */}
+        {showProposalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Handshake className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-base text-[#142B4A]">
+                    {activeConvData?.conversation?.currentProposal?.price ? "Submit Counteroffer" : "Submit Formal Commercial Quotation"}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowProposalModal(false)}
+                  className="text-slate-400 hover:text-slate-600 text-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {proposalSuccessMsg ? (
+                <div className="py-12 text-center text-emerald-600">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-emerald-500 animate-bounce" />
+                  <p className="font-bold text-sm">{proposalSuccessMsg}</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitProposal} className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Proposed Price *</label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="e.g. 580"
+                        value={proposalPrice}
+                        onChange={(e) => setProposalPrice(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Currency *</label>
+                      <select
+                        value={proposalCurrency}
+                        onChange={(e) => setProposalCurrency(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
+                      >
+                        <option value="USD">USD ($)</option>
+                        <option value="PKR">PKR (₨)</option>
+                        <option value="IRR">IRR (﷼)</option>
+                        <option value="AFN">AFN (؋)</option>
+                        <option value="CNY">CNY (¥)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity / Volume *</label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="e.g. 100"
+                        value={proposalQuantity}
+                        onChange={(e) => setProposalQuantity(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Delivery Timeline</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Within 7 days to Taftan Border"
+                        value={proposalDeliveryDate}
+                        onChange={(e) => setProposalDeliveryDate(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Transit Corridor & Route</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Quetta ➔ Taftan / Mirjaveh Zero Point"
+                      value={proposalRoute}
+                      onChange={(e) => setProposalRoute(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Payment & Escrow Terms</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 30% Advance, 70% on Customs Clearance at Border Terminal"
+                      value={proposalPaymentTerms}
+                      onChange={(e) => setProposalPaymentTerms(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Commercial Notes / Terms</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Include packaging standards, phytosanitary requirements, loading responsibility..."
+                      value={proposalNotes}
+                      onChange={(e) => setProposalNotes(e.target.value)}
+                      className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowProposalModal(false)}
+                      className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingProposal}
+                      className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs transition cursor-pointer"
+                    >
+                      {submittingProposal ? "Submitting..." : "Submit Quotation to Deal Room"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </AppShell>;
 }

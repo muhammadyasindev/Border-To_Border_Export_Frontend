@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { EditableSelect } from "../components/ui/EditableSelect.jsx";
 import { safeFetch, setAuthToken } from "../lib/api.js";
-import { BORDER_COUNTRIES, CORRIDOR_CITIES } from "../lib/constants.js";
+import { BORDER_COUNTRIES, CORRIDOR_CITIES, getCitiesForCountry, getCurrencyForCountry } from "../lib/constants.js";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -332,9 +332,18 @@ export function RegisterPage() {
                   <EditableSelect
                     label="Country Base *"
                     value={country}
-                    onChange={setCountry}
+                    onChange={(val) => {
+                      setCountry(val);
+                      const available = getCitiesForCountry(val);
+                      if (available.length > 0) {
+                        setCity(available[0].value);
+                      }
+                    }}
                     options={BORDER_COUNTRIES}
                   />
+                  <div className="text-[10px] text-emerald-600 font-semibold mt-1">
+                    Currency: {getCurrencyForCountry(country)}
+                  </div>
                 </div>
 
                 <div>
@@ -342,7 +351,7 @@ export function RegisterPage() {
                     label="City / Trade Hub *"
                     value={city}
                     onChange={setCity}
-                    options={CORRIDOR_CITIES}
+                    options={getCitiesForCountry(country)}
                   />
                 </div>
 

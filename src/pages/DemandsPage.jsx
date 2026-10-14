@@ -14,7 +14,9 @@ import {
   BORDER_COUNTRIES,
   CORRIDOR_CITIES,
   TRADE_CATEGORIES,
-  TRADE_UNITS
+  TRADE_UNITS,
+  getCitiesForCountry,
+  getCurrencyForCountry
 } from "../lib/constants.js";
 import { safeFetch } from "../lib/api.js";
 export default function DemandsPage() {
@@ -277,7 +279,14 @@ export default function DemandsPage() {
                       <EditableSelect
     label="Destination Country *"
     value={destinationCountry}
-    onChange={setDestinationCountry}
+    onChange={(val) => {
+      setDestinationCountry(val);
+      setCurrency(getCurrencyForCountry(val));
+      const available = getCitiesForCountry(val);
+      if (available.length > 0) {
+        setDestinationCity(available[0].value);
+      }
+    }}
     options={BORDER_COUNTRIES}
   />
                     </div>
@@ -287,7 +296,7 @@ export default function DemandsPage() {
     label="Destination City *"
     value={destinationCity}
     onChange={setDestinationCity}
-    options={CORRIDOR_CITIES}
+    options={getCitiesForCountry(destinationCountry)}
   />
                     </div>
                   </div>

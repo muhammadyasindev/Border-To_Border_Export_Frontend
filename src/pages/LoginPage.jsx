@@ -31,6 +31,14 @@ export function LoginPage() {
       if (data?.token) {
         setAuthToken(data.token);
       }
+      if (data?.user?.role) {
+        localStorage.setItem("user_role", data.user.role);
+      } else if (role) {
+        localStorage.setItem("user_role", role);
+      }
+      if (data?.user?.fullName) {
+        localStorage.setItem("user_fullName", data.user.fullName);
+      }
 
       navigate("/dashboard");
     } catch (err) {
