@@ -16,6 +16,7 @@ import {
   TRADE_CATEGORIES,
   TRADE_UNITS
 } from "../lib/constants.js";
+import { safeFetch } from "../lib/api.js";
 export default function DemandsPage() {
   const [demands, setDemands] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +37,9 @@ export default function DemandsPage() {
   const [packagingRequirements, setPackagingRequirements] = useState("");
   const loadDemands = async () => {
     try {
-      const res = await fetch("/api/demands?myOnly=true");
-      const data = await res.json();
-      setDemands(data.demands || []);
+      const res = await safeFetch("/api/demands?myOnly=true");
+      const data = res.data;
+      setDemands(data?.demands || (Array.isArray(data) ? data : []));
     } catch (e) {
       console.error(e);
     } finally {
@@ -55,9 +56,8 @@ export default function DemandsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/demands", {
+      const res = await safeFetch("/api/demands", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           category,

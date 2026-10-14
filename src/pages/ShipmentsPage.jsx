@@ -9,6 +9,7 @@ import {
   Radio,
   FileText
 } from "lucide-react";
+import { safeFetch } from "../lib/api.js";
 export default function ShipmentsPage() {
   const [shipments, setShipments] = useState([]);
   const [selectedShipment, setSelectedShipment] = useState(null);
@@ -18,9 +19,9 @@ export default function ShipmentsPage() {
   const [newStatus, setNewStatus] = useState("");
   const loadShipments = async (preferredId) => {
     try {
-      const res = await fetch("/api/shipments");
-      const data = await res.json();
-      const list = data.shipments || [];
+      const res = await safeFetch("/api/shipments");
+      const data = res.data;
+      const list = data?.shipments || (Array.isArray(data) ? data : []);
       setShipments(list);
       if (preferredId) {
         const found = list.find((s) => s.id === preferredId);
@@ -48,9 +49,8 @@ export default function ShipmentsPage() {
     if (!selectedShipment) return;
     setUpdating(true);
     try {
-      const res = await fetch("/api/shipments", {
+      const res = await safeFetch("/api/shipments", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shipmentId: selectedShipment.id,
           status: newStatus || void 0,

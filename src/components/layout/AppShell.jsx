@@ -34,6 +34,32 @@ export function AppShell({ children }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      title: "Quotation Received",
+      description: "Indus Agri submitted a new price on your Basmati demand.",
+      read: false,
+      time: "10m ago",
+    },
+    {
+      id: 2,
+      title: "Shipment In Transit",
+      description: "Reefer truck crossed Taftan zero-point customs.",
+      read: false,
+      time: "25m ago",
+    },
+  ]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleClearNotifications = () => {
+    setNotifications([]);
+  };
 
   // Fetch current authenticated user
   const fetchUser = async () => {
@@ -223,27 +249,59 @@ export function AppShell({ children }) {
                 aria-label="Notifications"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-extrabold flex items-center justify-center">
-                  5
-                </span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-extrabold flex items-center justify-center animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
 
               {notificationsOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 text-xs">
                   <div className="font-bold text-slate-900 mb-2 flex items-center justify-between">
                     <span>Recent Notifications</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold cursor-pointer">Mark read</span>
+                    {unreadCount > 0 ? (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[10px] text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer underline"
+                      >
+                        Mark read
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleClearNotifications}
+                        className="text-[10px] text-slate-400 hover:text-red-500 font-semibold cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    )}
                   </div>
-                  <div className="space-y-2 text-slate-600">
-                    <div className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
-                      <strong className="text-emerald-900 block">Quotation Received</strong>
-                      Indus Agri submitted a new price on your Basmati demand.
+                  {notifications.length === 0 ? (
+                    <div className="py-6 text-center text-slate-400 text-xs">
+                      No notifications. All caught up!
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
-                      <strong className="text-slate-900 block">Shipment In Transit</strong>
-                      Reefer truck crossed Taftan zero-point customs.
+                  ) : (
+                    <div className="space-y-2 text-slate-600">
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`p-2.5 rounded-xl border transition ${
+                            n.read
+                              ? "bg-slate-50/70 border-slate-200/80 text-slate-500"
+                              : "bg-emerald-50/70 border-emerald-200/90 text-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <strong className={`block ${n.read ? "text-slate-700 font-medium" : "text-emerald-950 font-bold"}`}>
+                              {n.title}
+                            </strong>
+                            <span className="text-[10px] text-slate-400">{n.time}</span>
+                          </div>
+                          <p className="mt-0.5 text-xs">{n.description}</p>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

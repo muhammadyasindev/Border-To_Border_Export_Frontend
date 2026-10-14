@@ -5,6 +5,7 @@ import { StatusBadge } from "../components/ui/StatusBadge.jsx";
 import {
   Lock
 } from "lucide-react";
+import { safeFetch } from "../lib/api.js";
 export default function AdminVerificationPage() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +15,7 @@ export default function AdminVerificationPage() {
   const [decisionNotes, setDecisionNotes] = useState("");
   const loadQueue = async () => {
     try {
-      const res = await fetch("/api/admin/verification");
+      const res = await safeFetch("/api/admin/verification");
       if (!res.ok) {
         if (res.status === 403) {
           setError("Access restricted to authorized compliance reviewers. Switch to Admin persona using the header selector.");
@@ -23,8 +24,8 @@ export default function AdminVerificationPage() {
         }
         return;
       }
-      const data = await res.json();
-      setDocuments(data.documents || []);
+      const data = res.data;
+      setDocuments(data?.documents || (Array.isArray(data) ? data : []));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -38,9 +39,8 @@ export default function AdminVerificationPage() {
     if (!selectedDoc) return;
     setActionLoading(true);
     try {
-      const res = await fetch("/api/admin/verification", {
+      const res = await safeFetch("/api/admin/verification", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           docId: selectedDoc.id,
           targetUserId: selectedDoc.userId,

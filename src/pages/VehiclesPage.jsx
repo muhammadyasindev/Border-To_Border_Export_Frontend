@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { EditableSelect } from "../components/ui/EditableSelect.jsx";
 import { BORDER_COUNTRIES } from "../lib/constants.js";
+import { safeFetch } from "../lib/api.js";
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,9 +33,9 @@ export default function VehiclesPage() {
   const [docFileSize, setDocFileSize] = useState("");
   const loadVehicles = async () => {
     try {
-      const res = await fetch("/api/vehicles");
-      const data = await res.json();
-      setVehicles(data.vehicles || []);
+      const res = await safeFetch("/api/vehicles");
+      const data = res.data;
+      setVehicles(data?.vehicles || (Array.isArray(data) ? data : []));
     } catch (e) {
       console.error(e);
     } finally {
@@ -51,9 +52,8 @@ export default function VehiclesPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/vehicles", {
+      const res = await safeFetch("/api/vehicles", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vehicleType,
           makeModel,

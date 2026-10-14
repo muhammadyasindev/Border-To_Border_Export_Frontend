@@ -1,6 +1,5 @@
-import { Link, useNavigate, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-
 import { AppShell } from "../components/layout/AppShell.jsx";
 import {
   Package,
@@ -14,34 +13,35 @@ import {
   ShieldCheck,
   PhoneCall,
   Search,
-  Filter,
   Check,
   ChevronRight,
   Handshake,
   Clock,
   Lock,
   PlusCircle,
-  Activity,
-  Briefcase
+  AlertCircle,
+  UserCheck
 } from "lucide-react";
+import { safeFetch } from "../lib/api.js";
+
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
+
   useEffect(() => {
     async function loadData() {
       try {
         const [userRes, summaryRes] = await Promise.all([
-          fetch("/api/auth/me").catch(() => null),
-          fetch("/api/dashboard/summary").catch(() => null)
+          safeFetch("/api/auth/me").catch(() => null),
+          safeFetch("/api/dashboard/summary").catch(() => null),
         ]);
-        const userData = userRes?.ok ? await userRes.json() : null;
-        const summaryData = summaryRes?.ok ? await summaryRes.json() : null;
-        if (userData?.user) {
-          setUser(userData.user);
+        if (userRes?.ok && userRes.data?.user) {
+          setUser(userRes.data.user);
         }
-        setSummary(summaryData);
+        if (summaryRes?.ok && summaryRes.data) {
+          setSummary(summaryRes.data);
+        }
       } catch (err) {
         console.error("Dashboard data load error:", err);
       } finally {
@@ -50,8 +50,10 @@ export default function DashboardPage() {
     }
     loadData();
   }, []);
+
   if (loading) {
-    return <AppShell>
+    return (
+      <AppShell>
         <div className="space-y-6 animate-pulse">
           <div className="h-44 bg-slate-200/80 rounded-2xl" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -62,376 +64,76 @@ export default function DashboardPage() {
           </div>
           <div className="h-96 bg-slate-200/80 rounded-2xl" />
         </div>
-      </AppShell>;
+      </AppShell>
+    );
   }
+
   const role = user?.role || "importer";
-  if (role === "admin") {
-    return <AppShell>
-        <div className="space-y-6">
-          {
-      /* Welcome Header */
-    }
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-extrabold text-slate-900">
-              Welcome back, {user?.fullName || "Oliver"}! 👋
-            </h1>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300">
-                Administrator
-              </span>
-              <span className="text-xs text-slate-500">Platform Health: 100% Operational</span>
-            </div>
-          </div>
+  const metrics = summary?.metrics || {};
 
-          {
-      /* Top 3 Metric Cards (Matching Image 3) */
-    }
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {
-      /* Metric 1 */
-    }
-            <div className="bg-gradient-to-br from-[#0c4033] to-[#072a22] text-white p-5 rounded-2xl shadow-sm border border-emerald-800/40 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-xs text-emerald-300 font-medium">
-                <span>Total platform revenue</span>
-                <span className="text-[11px] bg-emerald-950/60 px-2 py-0.5 rounded-md text-emerald-200">Last 30 days</span>
-              </div>
-              <div className="my-3">
-                <div className="text-3xl font-extrabold tracking-tight">$182,320</div>
-                <div className="text-xs text-emerald-300 mt-1 flex items-center gap-1 font-semibold">
-                  <TrendingUp className="w-3.5 h-3.5" /> +2.87% <span className="text-slate-300 font-normal">vs last month</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-emerald-800/50 flex items-center justify-between text-[11px] text-emerald-200">
-                <div className="w-24 h-1.5 bg-emerald-950 rounded-full overflow-hidden">
-                  <div className="w-3/4 h-full bg-emerald-400 rounded-full" />
-                </div>
-                <span>+$2,749 today</span>
-              </div>
-            </div>
-
-            {
-      /* Metric 2 */
-    }
-            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/90 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                <span>Active jobs</span>
-                <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">Last 30 days</span>
-              </div>
-              <div className="my-3">
-                <div className="text-3xl font-extrabold tracking-tight text-slate-900">86</div>
-                <div className="text-xs text-emerald-600 mt-1 flex items-center gap-1 font-semibold">
-                  <TrendingUp className="w-3.5 h-3.5" /> +40.93% <span className="text-slate-400 font-normal">vs last month</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                <div className="flex items-end gap-1 h-4">
-                  <div className="w-1.5 h-2 bg-emerald-300 rounded-xs" />
-                  <div className="w-1.5 h-3 bg-emerald-400 rounded-xs" />
-                  <div className="w-1.5 h-2.5 bg-emerald-300 rounded-xs" />
-                  <div className="w-1.5 h-4 bg-emerald-500 rounded-xs" />
-                  <div className="w-1.5 h-3 bg-emerald-400 rounded-xs" />
-                </div>
-                <span>Increase in active jobs +12</span>
-              </div>
-            </div>
-
-            {
-      /* Metric 3 */
-    }
-            <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200/90 flex flex-col justify-between">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                <span>Active shippers</span>
-                <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">Last 30 days</span>
-              </div>
-              <div className="my-3">
-                <div className="text-3xl font-extrabold tracking-tight text-slate-900">78</div>
-                <div className="text-xs text-emerald-600 mt-1 flex items-center gap-1 font-semibold">
-                  <TrendingUp className="w-3.5 h-3.5" /> +12.83% <span className="text-slate-400 font-normal">vs last month</span>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="w-2/3 h-full bg-emerald-500 rounded-full" />
-                </div>
-                <span>+$2,749 today</span>
-              </div>
-            </div>
-          </div>
-
-          {
-      /* Revenue Chart & Notifications Grid (Matching Image 3) */
-    }
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {
-      /* Left 8 Cols: Total Revenue Breakdown & Streams Table */
-    }
-            <div className="lg:col-span-8 space-y-6">
-              {
-      /* Chart Card */
-    }
-              <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
-                  <div>
-                    <span className="text-xs text-slate-500 font-medium">Total revenue</span>
-                    <div className="flex items-baseline gap-2 mt-0.5">
-                      <span className="text-3xl font-extrabold text-slate-900">$183,320</span>
-                      <span className="text-xs font-bold text-emerald-600 flex items-center">
-                        <TrendingUp className="w-3.5 h-3.5" /> +40.93%
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-6 text-xs text-slate-600">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        <span className="text-slate-500">Insurance revenue</span>
-                      </div>
-                      <div className="font-extrabold text-slate-900 text-sm mt-0.5">
-                        $100,000 <span className="text-[10px] text-emerald-600 font-semibold">+2.87%</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-slate-800" />
-                        <span className="text-slate-500">Fuel program revenue</span>
-                      </div>
-                      <div className="font-extrabold text-slate-900 text-sm mt-0.5">
-                        $24,628 <span className="text-[10px] text-red-600 font-semibold">-9.24%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {
-      /* Monthly Bar Chart Graphic */
-    }
-                <div className="pt-6">
-                  <div className="h-44 flex items-end justify-between gap-4 px-2">
-                    {[
-      { month: "Jan", height: "45%" },
-      { month: "Feb", height: "65%" },
-      { month: "Mar", height: "80%" },
-      { month: "Apr", height: "95%" },
-      { month: "May", height: "55%" },
-      { month: "Jun", height: "75%" }
-    ].map((bar) => <div key={bar.month} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                        <div
-      style={{ height: bar.height }}
-      className="w-full max-w-[48px] bg-emerald-500 hover:bg-emerald-600 rounded-t-lg transition shadow-xs"
-    />
-                        <span className="text-[11px] font-semibold text-slate-500">{bar.month}</span>
-                      </div>)}
-                  </div>
-                </div>
-              </div>
-
-              {
-      /* Revenue Streams Table */
-    }
-              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-600" />
-                    Revenue streams table
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                      <input
-      type="text"
-      placeholder="Search..."
-      className="pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 outline-none w-36"
-    />
-                    </div>
-                    <button className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                      <Filter className="w-3 h-3" /> Filters
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 px-4">Source</th>
-                        <th className="py-3 px-4">Revenue</th>
-                        <th className="py-3 px-4">Spread %</th>
-                        <th className="py-3 px-4">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      <tr className="hover:bg-slate-50/60">
-                        <td className="py-3 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                          <Truck className="w-4 h-4 text-emerald-600" /> Jobs
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">$92,300</td>
-                        <td className="py-3 px-4 text-slate-600">10-15%</td>
-                        <td className="py-3 px-4 text-slate-500">Primary corridor dispatch</td>
-                      </tr>
-                      <tr className="hover:bg-slate-50/60">
-                        <td className="py-3 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                          <Handshake className="w-4 h-4 text-emerald-600" /> Direct Deals
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">$38,500</td>
-                        <td className="py-3 px-4 text-slate-600">~8%</td>
-                        <td className="py-3 px-4 text-slate-500">Manual assignment</td>
-                      </tr>
-                      <tr className="hover:bg-slate-50/60">
-                        <td className="py-3 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                          <Handshake className="w-4 h-4 text-emerald-600" /> Direct Deals
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">$38,500</td>
-                        <td className="py-3 px-4 text-slate-600">~8%</td>
-                        <td className="py-3 px-4 text-slate-500">Manual assignment</td>
-                      </tr>
-                      <tr className="hover:bg-slate-50/60">
-                        <td className="py-3 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                          <Handshake className="w-4 h-4 text-emerald-600" /> Direct Deals
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">$38,500</td>
-                        <td className="py-3 px-4 text-slate-600">~8%</td>
-                        <td className="py-3 px-4 text-slate-500">Manual assignment</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {
-      /* Right 4 Cols: Notifications Panel matching Image 3 */
-    }
-            <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-slate-900">Notifications</h3>
-                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold flex items-center justify-center">
-                    12
-                  </span>
-                </div>
-                <button className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700">
-                  <Check className="w-3.5 h-3.5" /> Read all
-                </button>
-              </div>
-
-              {
-      /* Notification 1: Compliance */
-    }
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase tracking-wider">
-                    COMPLIANCE
-                  </span>
-                  <span className="text-slate-400">Just now</span>
-                </div>
-                <div className="text-xs font-bold text-slate-900">3 jobs missing CVIs</div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Verification records pending compliance review at Taftan terminal.
-                </p>
-                <Link
-      to="/admin/verification"
-      className="block text-center w-full py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-800 transition"
-    >
-                  Review jobs
-                </Link>
-              </div>
-
-              {
-      /* Notification 2: Spread Margin */
-    }
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 uppercase tracking-wider">
-                    SPREAD MARGIN
-                  </span>
-                  <span className="text-slate-400">3 min ago</span>
-                </div>
-                <div className="text-xs font-bold text-slate-900">Carrier payout too high on Job #1482</div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Adjust margin rules for refrigerated fuel surcharge.
-                </p>
-                <button className="w-full py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-800 transition">
-                  Adjust spread
-                </button>
-              </div>
-
-              {
-      /* Notification 3: Integration */
-    }
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 uppercase tracking-wider">
-                    INTEGRATION
-                  </span>
-                  <span className="text-slate-400">13 min ago</span>
-                </div>
-                <div className="text-xs font-bold text-slate-900">GPS system for &quot;HaulPro&quot; failing</div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  WebRTC telemetry sync interrupted at Chaman border tower.
-                </p>
-                <button className="w-full py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-800 transition">
-                  Reconnect
-                </button>
-              </div>
-
-              {
-      /* Notification 4: Payout */
-    }
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 uppercase tracking-wider">
-                    PAYOUT FAILED
-                  </span>
-                  <span className="text-slate-400">1d ago</span>
-                </div>
-                <div className="text-xs font-bold text-slate-900">$2,200 to carrier delayed</div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Bank transit routing code requires merchant verification.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </AppShell>;
-  }
-  return <AppShell>
+  return (
+    <AppShell>
       <div className="space-y-6">
-        {
-    /* 1. Hero Trade Banner matching Image 1 */
-  }
+        {/* Verification Alert Banner if Not Verified */}
+        {user?.verificationStatus !== "verified" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-amber-950">
+                  {user?.verificationStatus === "pending_review"
+                    ? "Verification Under Review"
+                    : "Complete Your Corridor Verification"}
+                </h4>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  {user?.verificationStatus === "pending_review"
+                    ? "Your identity and compliance documents have been submitted and are being reviewed by authorized customs officers."
+                    : "Upload your CNIC, trade enterprise license, or driving documents in the Verification Center to unlock private deal rooms and verified trader shield."}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/verification"
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0 flex items-center gap-1.5 self-start sm:self-center"
+            >
+              <span>{user?.verificationStatus === "pending_review" ? "View Status" : "Upload CNIC & Documents"}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
+
+        {/* 1. Hero Trade Banner with Real Data */}
         <div className="relative rounded-2xl overflow-hidden shadow-md text-white bg-[#0A1A2E]">
-          {
-    /* Mountain Truck Highway Background Image with Gradient Overlay */
-  }
           <div className="absolute inset-0 z-0">
             <img
-    src="/images/mountain-truck-highway.jpg"
-    alt="Trade Corridor Transport"
-    className="w-full h-full object-cover object-center brightness-75 contrast-110"
-  />
+              src="/images/mountain-truck-highway.jpg"
+              alt="Trade Corridor Transport"
+              className="w-full h-full object-cover object-center brightness-75 contrast-110"
+            />
             <div className="absolute inset-0 bg-gradient-to-r from-[#061424]/95 via-[#081a2e]/85 to-[#0b243e]/70" />
           </div>
 
           <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            {
-    /* Left Content */
-  }
             <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold mb-3 border border-blue-400/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Logged in as: <strong className="text-white uppercase">{role}</strong> ({user?.fullName || user?.email})</span>
+              </div>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
                 Bridging Markets <br />
                 Across <span className="text-emerald-400">Borders</span>
               </h1>
-
               <p className="mt-3 text-xs sm:text-sm text-slate-200 leading-relaxed max-w-xl font-normal">
                 Connect. Trade. Grow. BorderGlow empowers businesses across <span className="text-white font-semibold">Pakistan, Iran and Afghanistan</span> with secure, trusted and efficient trade solutions.
               </p>
 
-              <div className="mt-6 flex flex-wrap items-center gap-4">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <Link
-    to="/marketplace"
-    className="inline-flex items-center gap-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs px-5 py-3 rounded-xl shadow-lg shadow-emerald-500/25 transition transform hover:-translate-y-0.5"
-  >
+                  to="/marketplace"
+                  className="inline-flex items-center gap-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs px-5 py-3 rounded-xl shadow-lg shadow-emerald-500/25 transition transform hover:-translate-y-0.5"
+                >
                   Explore Marketplace
                   <ArrowRight className="w-4 h-4" />
                 </Link>
@@ -450,59 +152,37 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {
-    /* Right Total Trade Value Card matching Image 1 */
-  }
+            {/* Real Dynamic Trade Volume Card */}
             <div className="bg-[#0b1e32]/85 backdrop-blur-md border border-slate-700/60 rounded-2xl p-5 sm:p-6 lg:w-72 shrink-0 shadow-xl">
               <div className="text-[11px] font-medium text-slate-300">Total Trade Value</div>
               <div className="text-2xl sm:text-3xl font-extrabold text-white mt-1 tracking-tight">
-                $ 2,480,000
+                $ {Number(metrics?.totalTradeValue || 0).toLocaleString()}
               </div>
               <div className="text-xs font-bold text-emerald-400 mt-1 flex items-center gap-1">
                 <TrendingUp className="w-3.5 h-3.5" />
-                <span>↑ 12%</span>
-                <span className="text-slate-400 font-normal">vs. last 30 days</span>
+                <span>{metrics?.totalTradeValue ? "Active Volume" : "Corridor Ready"}</span>
+                <span className="text-slate-400 font-normal">Real-time ledger</span>
               </div>
 
-              {
-    /* Sparkline Graphic */
-  }
-              <div className="mt-4 h-10 w-full">
-                <svg viewBox="0 0 100 30" fill="none" className="w-full h-full">
-                  <path
-    d="M0 25 Q 15 20, 30 22 T 60 12 T 80 16 T 100 4"
-    stroke="#10b981"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-  />
-                  <path
-    d="M0 25 Q 15 20, 30 22 T 60 12 T 80 16 T 100 4 L 100 30 L 0 30 Z"
-    fill="url(#sparkline-grad-front)"
-    opacity="0.3"
-  />
-                  <defs>
-                    <linearGradient id="sparkline-grad-front" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+              <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-300">
+                <span>Active Deals:</span>
+                <span className="font-bold text-white">{metrics?.openDeals ?? 0}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs text-slate-300">
+                <span>Shipments in Transit:</span>
+                <span className="font-bold text-emerald-400">{metrics?.activeShipments ?? metrics?.activeTrips ?? 0}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {
-    /* 2. Four Key Metric Cards matching Image 1 */
-  }
+        {/* 2. Key Metric Cards (Real Dynamic Counts) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {
-    /* Card 1: Active Deals */
-  }
+          {/* Card 1: Active Deals */}
           <Link
-    to="/conversations"
-    className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
-  >
+            to="/conversations"
+            className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+          >
             <div className="flex items-center justify-between">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <Handshake className="w-5 h-5" />
@@ -510,21 +190,21 @@ export default function DashboardPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Deals</span>
             </div>
             <div className="mt-4">
-              <div className="text-xs text-slate-500 font-medium">Active Deals</div>
-              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">12</div>
-              <div className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-                <span>↑ 3 new this week</span>
+              <div className="text-xs text-slate-500 font-medium">Active Deal Rooms</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
+                {metrics?.openDeals ?? 0}
+              </div>
+              <div className="text-[11px] text-emerald-600 font-semibold mt-1">
+                {metrics?.openDeals ? "Open tripartite threads" : "No open deals"}
               </div>
             </div>
           </Link>
 
-          {
-    /* Card 2: Open Shipments */
-  }
+          {/* Card 2: Shipments */}
           <Link
-    to="/shipments"
-    className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
-  >
+            to="/shipments"
+            className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+          >
             <div className="flex items-center justify-between">
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                 <Truck className="w-5 h-5" />
@@ -532,489 +212,449 @@ export default function DashboardPage() {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Transit</span>
             </div>
             <div className="mt-4">
-              <div className="text-xs text-slate-500 font-medium">Open Shipments</div>
-              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">8</div>
-              <div className="text-[11px] text-blue-600 font-semibold mt-1 flex items-center gap-1">
-                <span>⚓ In transit</span>
+              <div className="text-xs text-slate-500 font-medium">
+                {role === "driver" ? "Active Road Trips" : "Inbound Shipments"}
+              </div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
+                {metrics?.activeShipments ?? metrics?.activeTrips ?? 0}
+              </div>
+              <div className="text-[11px] text-blue-600 font-semibold mt-1">
+                {metrics?.activeShipments || metrics?.activeTrips ? "⚓ Live GPS tracking" : "No active cargo transit"}
               </div>
             </div>
           </Link>
 
-          {
-    /* Card 3: Pending Verifications */
-  }
+          {/* Card 3: Verification Status */}
           <Link
-    to="/verification"
-    className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
-  >
+            to="/verification"
+            className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+          >
             <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                user?.verificationStatus === "verified"
+                  ? "bg-emerald-50 text-emerald-600"
+                  : "bg-amber-50 text-amber-600"
+              }`}>
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trust</span>
             </div>
             <div className="mt-4">
-              <div className="text-xs text-slate-500 font-medium">Pending Verifications</div>
-              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">4</div>
-              <div className="text-[11px] text-teal-600 font-semibold mt-1 flex items-center gap-1">
-                <span>✓ Review required</span>
+              <div className="text-xs text-slate-500 font-medium">Verification Status</div>
+              <div className="text-base sm:text-lg font-extrabold text-slate-900 mt-1 capitalize truncate">
+                {user?.verificationStatus === "verified"
+                  ? "Verified Trader"
+                  : user?.verificationStatus === "pending_review"
+                  ? "Pending Review"
+                  : "Not Submitted"}
+              </div>
+              <div className={`text-[11px] font-semibold mt-1 ${
+                user?.verificationStatus === "verified" ? "text-emerald-600" : "text-amber-600"
+              }`}>
+                {user?.verificationStatus === "verified" ? "✓ Verified Badge Active" : "Upload CNIC & Docs →"}
               </div>
             </div>
           </Link>
 
-          {
-    /* Card 4: Messages */
-  }
+          {/* Card 4: Messages & Communications */}
           <Link
-    to="/conversations"
-    className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
-  >
+            to="/conversations"
+            className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition flex flex-col justify-between group"
+          >
             <div className="flex items-center justify-between">
               <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                 <MessageSquare className="w-5 h-5" />
               </div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Chat</span>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Chat & Calls</span>
             </div>
             <div className="mt-4">
-              <div className="text-xs text-slate-500 font-medium">Messages</div>
-              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">5</div>
-              <div className="text-[11px] text-purple-600 font-semibold mt-1 flex items-center gap-1">
-                <span>💬 3 unread</span>
+              <div className="text-xs text-slate-500 font-medium">Messages & Call Rooms</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">
+                {summary?.myConversations?.length ?? 0}
+              </div>
+              <div className="text-[11px] text-purple-600 font-semibold mt-1">
+                💬 WebRTC Audio/Video ready
               </div>
             </div>
           </Link>
         </div>
 
-        {
-    /* 3. Middle Multi-Column Grid matching Image 1 */
-  }
+        {/* 3. Main Role-Tailored Feed: Demands, Products & Transport */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {
-    /* Left Column (8 cols): Recent Activity + Map + Quick Actions */
-  }
+          {/* Left Column (8 cols): Role Content */}
           <div className="lg:col-span-8 space-y-6">
-            {
-    /* Recent Trade Activity Card */
-  }
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                  Recent Trade Activity
-                </h3>
+            {/* EXPORTER VIEW: Demands from Importers/Drivers to Fulfill */}
+            {role === "exporter" && (
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      Live Buyer Demands (Corridor Importers)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Demands published by buyers in Pakistan, Iran, and Afghanistan looking for commodities.
+                    </p>
+                  </div>
+                  <Link
+                    to="/marketplace?tab=demands"
+                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 shrink-0"
+                  >
+                    View All Demands <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+
+                {summary?.marketplaceDemands && summary.marketplaceDemands.length > 0 ? (
+                  <div className="space-y-3">
+                    {summary.marketplaceDemands.map((demand) => (
+                      <div
+                        key={demand._id || demand.id}
+                        className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                            <ShoppingBag className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {demand.title}
+                            </h4>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Destination: <strong>{demand.destinationCountry || "Pakistan"}</strong> ({demand.destinationCity || "Hub"}) • Category: {demand.category || "Commodity"}
+                            </div>
+                            <div className="text-[11px] text-slate-700 font-semibold mt-1">
+                              Quantity: {demand.quantityRequired || demand.quantity || "Bulk"} {demand.unit || "Tons"}
+                              {demand.targetPrice && ` • Target Price: $${Number(demand.targetPrice).toLocaleString()}`}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Link
+                          to={`/conversations?newDeal=demand&id=${demand._id || demand.id}&title=${encodeURIComponent(demand.title)}&targetUserId=${demand.buyerId || ""}`}
+                          className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0 self-start sm:self-center flex items-center gap-1.5"
+                        >
+                          <Handshake className="w-3.5 h-3.5" />
+                          <span>Supply / Deal Room</span>
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-600 font-medium">
+                      No active buyer demands published in the corridor right now.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      As an Exporter, you can list your export commodities in the Marketplace so regional importers can find and contact you.
+                    </p>
+                    <Link
+                      to="/products?action=new"
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Post Product for Export</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* IMPORTER VIEW: Products in Marketplace & Transport Offers */}
+            {role === "importer" && (
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      Available Commodities in Corridor Marketplace
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Verified export commodities available from Pakistan, Iran, and Afghanistan producers.
+                    </p>
+                  </div>
+                  <Link
+                    to="/marketplace?tab=products"
+                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 shrink-0"
+                  >
+                    Browse All Products <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+
+                {summary?.marketplaceProducts && summary.marketplaceProducts.length > 0 ? (
+                  <div className="space-y-3">
+                    {summary.marketplaceProducts.map((prod) => (
+                      <div
+                        key={prod._id || prod.id}
+                        className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                            <Package className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {prod.title}
+                            </h4>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Origin: <strong>{prod.originCountry || "Pakistan"}</strong> ({prod.originCity || "Hub"}) • Category: {prod.category || "General"}
+                            </div>
+                            <div className="text-[11px] text-slate-700 font-semibold mt-1">
+                              Price: ${Number(prod.pricePerUnit || prod.price || 0).toLocaleString()} / {prod.unit || "unit"}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Link
+                          to={`/conversations?newDeal=product&id=${prod._id || prod.id}&title=${encodeURIComponent(prod.title)}&targetUserId=${prod.exporterId || ""}`}
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0 self-start sm:self-center flex items-center gap-1.5"
+                        >
+                          <Handshake className="w-3.5 h-3.5" />
+                          <span>Inquire & Buy</span>
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-600 font-medium">
+                      No products listed in the marketplace yet.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Post what goods you need so producers and exporters can quote prices directly to you.
+                    </p>
+                    <Link
+                      to="/demands?action=new"
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Post a Buyer Demand</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DRIVER VIEW: Cargo Transport Requests & Haulage Opportunities */}
+            {role === "driver" && (
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      Open Freight Demands (Haulage Opportunities)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Commercial shipments requiring road transport across corridor transit routes.
+                    </p>
+                  </div>
+                  <Link
+                    to="/marketplace?tab=transport"
+                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 shrink-0"
+                  >
+                    Transport Marketplace <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+
+                {summary?.availableDemands && summary.availableDemands.length > 0 ? (
+                  <div className="space-y-3">
+                    {summary.availableDemands.map((demand) => (
+                      <div
+                        key={demand._id || demand.id}
+                        className="p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                            <Truck className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {demand.title}
+                            </h4>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Route: <strong>{demand.originCountry || "Origin"}</strong> ➔ <strong>{demand.destinationCountry || "Destination"}</strong>
+                            </div>
+                            <div className="text-[11px] text-slate-700 font-semibold mt-1">
+                              Cargo: {demand.quantityRequired || demand.quantity || "Full Load"} {demand.unit || "Tons"}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Link
+                          to={`/conversations?newDeal=demand&id=${demand._id || demand.id}&title=${encodeURIComponent(demand.title)}&targetUserId=${demand.buyerId || ""}`}
+                          className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0 self-start sm:self-center flex items-center gap-1.5"
+                        >
+                          <Compass className="w-3.5 h-3.5" />
+                          <span>Offer Transport</span>
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <Truck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-600 font-medium">
+                      No open cargo transport requests currently.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Register your truck and trailer in the Fleet tab to publish your route availability to traders.
+                    </p>
+                    <Link
+                      to="/vehicles?action=new"
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Register Vehicle in Fleet</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Real Communications / Calls / SMS History */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    My Calls & Deal Rooms History
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Your active commercial discussions, SMS messages, and WebRTC calls.
+                  </p>
+                </div>
                 <Link
-    to="/conversations"
-    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-  >
-                  View All <ChevronRight className="w-3.5 h-3.5" />
+                  to="/conversations"
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
+                >
+                  Open Inbox <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
 
-              <div className="space-y-3">
-                {[
-    {
-      title: "Steel Products Deal",
-      type: "Importer \u2022 UAE \u2192 Pakistan",
-      amount: "$ 125,000",
-      volume: "20 tons",
-      time: "2h ago",
-      status: "Active",
-      statusColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      icon: Package
-    },
-    {
-      title: "Textile Shipment",
-      type: "Exporter \u2022 Pakistan \u2192 Iran",
-      amount: "$ 48,000",
-      volume: "5 tons",
-      time: "4h ago",
-      status: "In Transit",
-      statusColor: "bg-blue-50 text-blue-700 border-blue-200",
-      icon: Truck
-    },
-    {
-      title: "Trucking Service",
-      type: "Driver \u2022 Pakistan (Lahore \u2192 Islamabad)",
-      amount: "$ 2,400",
-      volume: "Reefer FTL",
-      time: "6h ago",
-      status: "Assigned",
-      statusColor: "bg-purple-50 text-purple-700 border-purple-200",
-      icon: Compass
-    },
-    {
-      title: "Agricultural Products",
-      type: "Importer \u2022 Afghanistan",
-      amount: "$ 32,000",
-      volume: "10 tons",
-      time: "8h ago",
-      status: "Active",
-      statusColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      icon: ShoppingBag
-    },
-    {
-      title: "Machinery Deal",
-      type: "Exporter \u2022 Iran \u2192 Pakistan",
-      amount: "$ 210,000",
-      volume: "15 tons",
-      time: "12h ago",
-      status: "Negotiation",
-      statusColor: "bg-amber-50 text-amber-700 border-amber-200",
-      icon: Briefcase
-    }
-  ].map((deal, i) => {
-    const Icon = deal.icon;
-    return <div
-      key={i}
-      className="p-3.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition flex items-center justify-between gap-3"
-    >
+              {summary?.myConversations && summary.myConversations.length > 0 ? (
+                <div className="space-y-2.5">
+                  {summary.myConversations.map((conv) => (
+                    <Link
+                      key={conv._id || conv.id}
+                      to={`/conversations?id=${conv._id || conv.id}`}
+                      className="p-3.5 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition flex items-center justify-between gap-3 group"
+                    >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-                          <Icon className="w-5 h-5 text-emerald-600" />
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                          <MessageSquare className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
                           <div className="font-bold text-xs sm:text-sm text-slate-900 truncate">
-                            {deal.title}
+                            {conv.title || "Commercial Deal Room"}
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5 truncate">
-                            {deal.type}
-                          </div>
-                          <div className="text-[11px] text-slate-700 font-semibold mt-0.5">
-                            {deal.amount} • <span className="text-slate-500 font-normal">{deal.volume}</span>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            Status: <span className="text-emerald-600 font-semibold">{conv.status || "active"}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${deal.statusColor}`}>
-                          {deal.status}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="p-1.5 rounded-lg text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition">
+                          <PhoneCall className="w-4 h-4" />
                         </span>
-                        <div className="text-[10px] text-slate-400 mt-1">{deal.time}</div>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
                       </div>
-                    </div>;
-  })}
-              </div>
-            </div>
-
-            {
-    /* Trade Routes (Live) Map Visual matching Image 1 */
-  }
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                    Trade Routes
-                  </h3>
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
-                  </span>
+                    </Link>
+                  ))}
                 </div>
-              </div>
-
-              {
-    /* Graphic Map Canvas */
-  }
-              <div className="relative h-60 bg-gradient-to-br from-emerald-950/5 via-slate-50 to-teal-950/10 rounded-xl border border-slate-200 overflow-hidden flex items-center justify-center p-4">
-                <svg viewBox="0 0 600 240" fill="none" className="w-full h-full">
-                  {
-    /* Iran Territory Outline Representation */
-  }
-                  <path d="M 50 140 Q 120 70, 200 120 T 300 130" stroke="#cbd5e1" strokeWidth="2" strokeDasharray="3 3" />
-                  {
-    /* Afghanistan Territory */
-  }
-                  <path d="M 280 70 Q 360 40, 440 90 T 480 130" stroke="#cbd5e1" strokeWidth="2" strokeDasharray="3 3" />
-                  {
-    /* Pakistan Territory */
-  }
-                  <path d="M 320 160 Q 420 180, 520 190 T 560 140" stroke="#cbd5e1" strokeWidth="2" strokeDasharray="3 3" />
-
-                  {
-    /* Active Transit Curves */
-  }
-                  {
-    /* Zahedan -> Taftan -> Quetta */
-  }
-                  <path d="M 120 120 Q 220 80, 340 140" stroke="#10b981" strokeWidth="3" strokeLinecap="round" />
-                  {
-    /* Quetta -> Chaman -> Kandahar */
-  }
-                  <path d="M 340 140 Q 380 90, 420 80" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeDasharray="4 4" />
-                  {
-    /* Taftan -> Karachi */
-  }
-                  <path d="M 340 140 Q 400 190, 480 200" stroke="#a855f7" strokeWidth="2.5" strokeDasharray="2 2" />
-
-                  {
-    /* Node Pins */
-  }
-                  {
-    /* Zahedan / Iran */
-  }
-                  <circle cx="120" cy="120" r="6" fill="#10b981" />
-                  <circle cx="120" cy="120" r="10" stroke="#10b981" strokeWidth="1.5" opacity="0.4" />
-                  <text x="100" y="145" fill="#0f172a" fontSize="12" fontWeight="bold">Iran (Zahedan)</text>
-
-                  {
-    /* Taftan / Quetta / Pakistan */
-  }
-                  <circle cx="340" cy="140" r="6" fill="#10b981" />
-                  <circle cx="340" cy="140" r="12" stroke="#10b981" strokeWidth="1.5" opacity="0.4" />
-                  <text x="360" y="150" fill="#0f172a" fontSize="12" fontWeight="bold">Pakistan (Quetta / Taftan)</text>
-
-                  {
-    /* Kandahar / Afghanistan */
-  }
-                  <circle cx="420" cy="80" r="6" fill="#3b82f6" />
-                  <text x="435" y="80" fill="#0f172a" fontSize="12" fontWeight="bold">Afghanistan (Kandahar)</text>
-                </svg>
-
-                {
-    /* Map Legend */
-  }
-                <div className="absolute bottom-3 left-4 flex items-center gap-4 text-[10px] font-semibold text-slate-600 bg-white/90 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-slate-200">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Active Deals
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" /> In Transit
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-purple-500" /> Planned
-                  </div>
+              ) : (
+                <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <MessageSquare className="w-7 h-7 text-slate-300 mx-auto mb-1.5" />
+                  <p className="text-xs text-slate-600 font-medium">
+                    No active call or message threads yet.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Select a counterparty from the Marketplace to negotiate rates, share documents, or start a call.
+                  </p>
                 </div>
-              </div>
-
-              {
-    /* Quick Actions Grid matching Image 1 */
-  }
-              <div className="mt-6 pt-5 border-t border-slate-100">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3">
-                  Quick Actions
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {role === "exporter" ? <Link
-    to="/products?action=new"
-    className="p-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40 transition flex flex-col items-center text-center group"
-  >
-                      <PlusCircle className="w-5 h-5 text-emerald-600 mb-1.5 group-hover:scale-110 transition" />
-                      <span className="font-bold text-xs text-slate-800">Post a Product</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">List for global buyers</span>
-                    </Link> : <Link
-    to="/demands"
-    className="p-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40 transition flex flex-col items-center text-center group"
-  >
-                      <ShoppingBag className="w-5 h-5 text-emerald-600 mb-1.5 group-hover:scale-110 transition" />
-                      <span className="font-bold text-xs text-slate-800">Post a Demand</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">Find products you need</span>
-                    </Link>}
-
-                  <Link
-    to="/transport"
-    className="p-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition flex flex-col items-center text-center group"
-  >
-                    <Truck className="w-5 h-5 text-blue-600 mb-1.5 group-hover:scale-110 transition" />
-                    <span className="font-bold text-xs text-slate-800">Book a Truck</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">Transport goods safely</span>
-                  </Link>
-
-                  <Link
-    to="/conversations"
-    className="p-3 rounded-xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/40 transition flex flex-col items-center text-center group"
-  >
-                    <PhoneCall className="w-5 h-5 text-purple-600 mb-1.5 group-hover:scale-110 transition" />
-                    <span className="font-bold text-xs text-slate-800">Start a Call</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">Connect with partner</span>
-                  </Link>
-
-                  <Link
-    to="/verification"
-    className="p-3 rounded-xl border border-slate-200 hover:border-teal-300 hover:bg-teal-50/40 transition flex flex-col items-center text-center group"
-  >
-                    <ShieldCheck className="w-5 h-5 text-teal-600 mb-1.5 group-hover:scale-110 transition" />
-                    <span className="font-bold text-xs text-slate-800">Verify Account</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">Upload trade credentials</span>
-                  </Link>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {
-    /* Right Column (4 cols): Your Trade Network + Quick Call + Latest Updates */
-  }
+          {/* Right Column (4 cols): Quick Corridor Shortcuts */}
           <div className="lg:col-span-4 space-y-6">
-            {
-    /* Your Trade Network matching Image 1 */
-  }
+            {/* Quick Actions */}
             <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-extrabold text-sm text-slate-900">
-                  Your Trade Network
-                </h3>
+              <h3 className="font-extrabold text-sm text-slate-900 mb-3.5">
+                Corridor Quick Actions
+              </h3>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {role === "exporter" ? (
+                  <Link
+                    to="/products?action=new"
+                    className="p-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40 transition flex flex-col items-center text-center group"
+                  >
+                    <Package className="w-5 h-5 text-emerald-600 mb-1.5 group-hover:scale-110 transition" />
+                    <span className="font-bold text-xs text-slate-800">List Product</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">For global export</span>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/demands?action=new"
+                    className="p-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition flex flex-col items-center text-center group"
+                  >
+                    <ShoppingBag className="w-5 h-5 text-blue-600 mb-1.5 group-hover:scale-110 transition" />
+                    <span className="font-bold text-xs text-slate-800">Post Demand</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Procure commodities</span>
+                  </Link>
+                )}
+
                 <Link
-    to="/conversations"
-    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-  >
-                  View All <ChevronRight className="w-3.5 h-3.5" />
+                  to="/transport"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/40 transition flex flex-col items-center text-center group"
+                >
+                  <Truck className="w-5 h-5 text-purple-600 mb-1.5 group-hover:scale-110 transition" />
+                  <span className="font-bold text-xs text-slate-800">Freight Transport</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">Road haulage booking</span>
                 </Link>
-              </div>
 
-              <div className="space-y-3">
-                {[
-    { name: "Ali Raza", role: "Exporter", country: "Pakistan", status: "Online", online: true },
-    { name: "Saeed Ahmad", role: "Importer", country: "Iran", status: "Online", online: true },
-    { name: "Farhad Rahimi", role: "Transporter", country: "Iran", status: "Last seen 2h ago", online: false },
-    { name: "Rashid Khan", role: "Driver", country: "Afghanistan", status: "Online", online: true }
-  ].map((trader, i) => <div
-    key={i}
-    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
-  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">
-                        {trader.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="font-bold text-xs text-slate-900">{trader.name}</div>
-                        <div className="text-[11px] text-slate-500">
-                          {trader.role} • {trader.country}
-                        </div>
-                      </div>
-                    </div>
+                <Link
+                  to="/conversations"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/40 transition flex flex-col items-center text-center group"
+                >
+                  <PhoneCall className="w-5 h-5 text-amber-600 mb-1.5 group-hover:scale-110 transition" />
+                  <span className="font-bold text-xs text-slate-800">Start Call</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">Audio/Video Deal Room</span>
+                </Link>
 
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-medium flex items-center gap-1 ${trader.online ? "text-emerald-600" : "text-slate-400"}`}>
-                        {trader.online && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                        {trader.status}
-                      </span>
-                      <Link
-    to="/conversations"
-    className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
-  >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
-                  </div>)}
+                <Link
+                  to="/verification"
+                  className="p-3 rounded-xl border border-slate-200 hover:border-teal-300 hover:bg-teal-50/40 transition flex flex-col items-center text-center group"
+                >
+                  <ShieldCheck className="w-5 h-5 text-teal-600 mb-1.5 group-hover:scale-110 transition" />
+                  <span className="font-bold text-xs text-slate-800">Verification</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5">Upload CNIC & Docs</span>
+                </Link>
               </div>
             </div>
 
-            {
-    /* Quick Call Card matching Image 1 */
-  }
+            {/* Quick WebRTC Call Card */}
             <div className="relative rounded-2xl overflow-hidden border border-slate-200/90 shadow-2xs text-white p-5 bg-[#0C1D2E]">
-              <div className="absolute inset-0 z-0 opacity-40">
-                <img
-    src="/images/mountain-truck-highway.jpg"
-    alt="Transit Highway"
-    className="w-full h-full object-cover"
-  />
-              </div>
               <div className="relative z-10 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                    <Truck className="w-4 h-4" />
+                    <Video className="w-4 h-4" />
                   </div>
-                  <h4 className="font-bold text-sm text-white">Quick Call</h4>
+                  <h4 className="font-bold text-sm text-white">Tripartite Deal Call</h4>
                 </div>
-                <p className="text-xs text-slate-200 leading-relaxed">
-                  Start a secure voice or video call with your deal partner.
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Start an encrypted peer-to-peer voice/video call with your buyer, seller, or driver.
                 </p>
                 <Link
-    to="/conversations"
-    className="w-full inline-flex items-center justify-center gap-2 bg-[#059669] hover:bg-emerald-500 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition"
-  >
+                  to="/conversations"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#059669] hover:bg-emerald-500 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition"
+                >
                   <Video className="w-4 h-4" />
-                  Start Call
+                  <span>Open Deal Room & Call</span>
                 </Link>
               </div>
-            </div>
-
-            {
-    /* Latest Updates Card matching Image 1 */
-  }
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-2xs">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-extrabold text-sm text-slate-900">
-                  Latest Updates
-                </h3>
-                <Link
-    to="/news"
-    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-  >
-                  View All <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-
-              <div className="space-y-3.5 text-xs">
-                <div className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900 leading-snug">
-                      New compliance guidelines for cross-border trade
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">2 hours ago</div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900 leading-snug">
-                      Market prices for steel increased by 8%
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">5 hours ago</div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900 leading-snug">
-                      System maintenance scheduled (Jan 18, 2:00 AM)
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">1 day ago</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {
-    /* 4. Bottom Cyber Security Banner matching Image 1 */
-  }
-        <div className="bg-gradient-to-r from-[#072420] via-[#09352e] to-[#041a17] text-white rounded-2xl p-5 sm:p-6 border border-emerald-500/30 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="font-extrabold text-sm sm:text-base text-white">
-                Secure. Verified. Trusted.
-              </h4>
-              <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
-                Our multi-layer security ensures your data, transactions and communications are protected across borders.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 shrink-0">
-            <button
-    onClick={() => setShowVerificationModal(true)}
-    className="inline-flex items-center gap-1.5 bg-emerald-400/20 hover:bg-emerald-400/30 text-emerald-300 hover:text-white px-4 py-2 rounded-xl text-xs font-bold border border-emerald-400/30 transition cursor-pointer"
-  >
-              Learn More <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-10 h-10 rounded-xl bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Lock className="w-5 h-5" />
             </div>
           </div>
         </div>
       </div>
-    </AppShell>;
+    </AppShell>
+  );
 }

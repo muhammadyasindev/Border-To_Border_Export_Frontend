@@ -27,6 +27,25 @@ import {
   Image as ImageIcon,
   Lock
 } from "lucide-react";
+import { buildApiUrl, getAuthToken } from "../lib/api.js";
+
+const authFetch = async (input, init = {}) => {
+  const url = typeof input === "string" ? buildApiUrl(input) : input;
+  const headers = new Headers(init.headers || {});
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const token = getAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(url, {
+    ...init,
+    headers,
+    credentials: init.credentials || "include",
+  });
+};
+
 export default function ConversationsPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -70,7 +89,7 @@ export default function ConversationsPage() {
   const callTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
   useEffect(() => {
-    fetch("/api/auth/me").then((r) => r.json()).then((d) => {
+    authFetch("/api/auth/me").then((r) => r.json()).then((d) => {
       if (d.user) setCurrentUser(d.user);
     }).catch((e) => console.error(e));
   }, []);
@@ -81,7 +100,7 @@ export default function ConversationsPage() {
       const dealId = params.get("id");
       const newDeal = params.get("newDeal");
       const dealTitle = params.get("title");
-      const res = await fetch("/api/conversations");
+      const res = await authFetch("/api/conversations");
       const data = await res.json();
       const list = data.conversations || [];
       setConversations(list);
@@ -96,7 +115,7 @@ export default function ConversationsPage() {
           try {
             const roleForCounterparty = newDeal === "transport" ? "driver" : newDeal === "product" ? "exporter" : "importer";
             const roleForMe = newDeal === "transport" ? "importer" : currentUser?.role || "importer";
-            const createRes = await fetch("/api/conversations", {
+            const createRes = await authFetch("/api/conversations", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -112,7 +131,7 @@ export default function ConversationsPage() {
             const createData = await createRes.json();
             if (createData.conversation) {
               setSelectedConvId(createData.conversation.id);
-              const freshRes = await fetch("/api/conversations");
+              const freshRes = await authFetch("/api/conversations");
               const freshData = await freshRes.json();
               setConversations(freshData.conversations || []);
             }
@@ -135,7 +154,7 @@ export default function ConversationsPage() {
   const loadActiveConversation = async (id) => {
     setLoadingActive(true);
     try {
-      const res = await fetch(`/api/conversations/${id}`);
+      const res = await authFetch(`/api/conversations/${id}`);
       const data = await res.json();
       setActiveConvData(data);
     } catch (e) {
@@ -275,7 +294,7 @@ export default function ConversationsPage() {
           payload.content = `\u{1F4CE} Attached ${attachedFiles.length} trade document(s): ${attachedFiles.map((f) => f.name).join(", ")}`;
         }
       }
-      const res = await fetch(`/api/conversations/${selectedConvId}`, {
+      const res = await authFetch(`/api/conversations/${selectedConvId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -295,7 +314,7 @@ export default function ConversationsPage() {
   const handleAttachProforma = async () => {
     if (!selectedConvId) return;
     try {
-      await fetch(`/api/conversations/${selectedConvId}`, {
+      await authFetch(`/api/conversations/${selectedConvId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -313,7 +332,7 @@ export default function ConversationsPage() {
   const handleUpdateStatus = async () => {
     if (!selectedConvId) return;
     try {
-      await fetch(`/api/conversations/${selectedConvId}`, {
+      await authFetch(`/api/conversations/${selectedConvId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -331,7 +350,7 @@ export default function ConversationsPage() {
   const fetchUsersForInvite = async (roleToFetch) => {
     setLoadingUsers(true);
     try {
-      const res = await fetch(`/api/users?role=${roleToFetch}`);
+      const res = await authFetch(`/api/users?role=${roleToFetch}`);
       const data = await res.json();
       const usersList = data.users || [];
       setAvailableUsers(usersList);
@@ -354,7 +373,7 @@ export default function ConversationsPage() {
   const handleInvitePartner = async () => {
     if (!selectedConvId || !selectedInviteUserId) return;
     try {
-      await fetch(`/api/conversations/${selectedConvId}`, {
+      await authFetch(`/api/conversations/${selectedConvId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -392,7 +411,7 @@ export default function ConversationsPage() {
   };
   const getIceServers = async () => {
     try {
-      const res = await fetch("/api/webrtc/ice-servers");
+      const res = await authFetch("/api/webrtc/ice-servers");
       if (res.ok) {
         const data = await res.json();
         if (data.iceServers && Array.isArray(data.iceServers)) {
@@ -432,7 +451,7 @@ export default function ConversationsPage() {
       };
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          fetch(`/api/conversations/${selectedConvId}/call`, {
+          authFetch(`/api/conversations/${selectedConvId}/call`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "candidate", candidate: event.candidate })
@@ -441,7 +460,7 @@ export default function ConversationsPage() {
       };
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await fetch(`/api/conversations/${selectedConvId}/call`, {
+      await authFetch(`/api/conversations/${selectedConvId}/call`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -483,7 +502,7 @@ export default function ConversationsPage() {
       };
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          fetch(`/api/conversations/${selectedConvId}/call`, {
+          authFetch(`/api/conversations/${selectedConvId}/call`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "candidate", candidate: event.candidate })
@@ -494,7 +513,7 @@ export default function ConversationsPage() {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offerSdp));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        await fetch(`/api/conversations/${selectedConvId}/call`, {
+        await authFetch(`/api/conversations/${selectedConvId}/call`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -513,7 +532,7 @@ export default function ConversationsPage() {
   };
   const rejectCall = async () => {
     if (!selectedConvId) return;
-    await fetch(`/api/conversations/${selectedConvId}/call`, {
+    await authFetch(`/api/conversations/${selectedConvId}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reject" })
@@ -522,7 +541,7 @@ export default function ConversationsPage() {
   };
   const endCall = async () => {
     if (!selectedConvId) return;
-    await fetch(`/api/conversations/${selectedConvId}/call`, {
+    await authFetch(`/api/conversations/${selectedConvId}/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "end" })
@@ -548,7 +567,7 @@ export default function ConversationsPage() {
     if (!selectedConvId) return;
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/conversations/${selectedConvId}/call`);
+        const res = await authFetch(`/api/conversations/${selectedConvId}/call`);
         const data = await res.json();
         const session = data.call;
         if (!session) return;

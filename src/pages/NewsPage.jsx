@@ -9,6 +9,7 @@ import {
   TrendingUp,
   CheckCircle2
 } from "lucide-react";
+import { safeFetch } from "../lib/api.js";
 export default function NewsPage() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,9 +30,9 @@ export default function NewsPage() {
   const loadNews = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/news?category=${encodeURIComponent(activeCategory)}&corridor=${encodeURIComponent(corridorFilter)}`);
-      const data = await res.json();
-      setReports(data.news || []);
+      const res = await safeFetch(`/api/news?category=${encodeURIComponent(activeCategory)}&corridor=${encodeURIComponent(corridorFilter)}`);
+      const data = res.data;
+      setReports(data?.news || (Array.isArray(data) ? data : []));
     } catch (e) {
       console.error(e);
     } finally {
@@ -45,9 +46,8 @@ export default function NewsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/news", {
+      const res = await safeFetch("/api/news", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           category,

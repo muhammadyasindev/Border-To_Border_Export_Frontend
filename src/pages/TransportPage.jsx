@@ -13,6 +13,7 @@ import { EditableSelect } from "../components/ui/EditableSelect.jsx";
 import {
   CORRIDOR_CURRENCIES
 } from "../lib/constants.js";
+import { safeFetch } from "../lib/api.js";
 export default function TransportPage() {
   const [offers, setOffers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -34,14 +35,14 @@ export default function TransportPage() {
   const loadData = async () => {
     try {
       const [offRes, vehRes] = await Promise.all([
-        fetch("/api/transport"),
-        fetch("/api/vehicles")
+        safeFetch("/api/transport"),
+        safeFetch("/api/vehicles")
       ]);
-      const offData = await offRes.json();
-      const vehData = await vehRes.json();
-      setOffers(offData.offers || []);
-      setVehicles(vehData.vehicles || []);
-      if (vehData.vehicles && vehData.vehicles.length > 0) {
+      const offData = offRes.data;
+      const vehData = vehRes.data;
+      setOffers(offData?.offers || (Array.isArray(offData) ? offData : []));
+      setVehicles(vehData?.vehicles || (Array.isArray(vehData) ? vehData : []));
+      if (vehData?.vehicles && vehData.vehicles.length > 0) {
         setVehicleId(vehData.vehicles[0].id.toString());
       }
     } catch (e) {
@@ -60,9 +61,8 @@ export default function TransportPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("/api/transport", {
+      const res = await safeFetch("/api/transport", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vehicleId: vehicleId ? Number(vehicleId) : null,
           title,

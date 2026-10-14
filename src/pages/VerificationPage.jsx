@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { EditableSelect } from "../components/ui/EditableSelect.jsx";
 import { VERIFICATION_DOC_TYPES } from "../lib/constants.js";
+import { safeFetch } from "../lib/api.js";
 export default function VerificationPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -63,15 +64,28 @@ export default function VerificationPage() {
   };
   const loadVerification = async () => {
     try {
-      const res = await fetch("/api/verification");
-      const resData = await res.json();
-      setData(resData);
-      if (resData.user) {
-        setCnicNumber(resData.user.cnicNumber || "");
-        setPersonAddress(resData.user.personAddress || "");
-        setBusinessName(resData.user.businessName || "");
-        setBusinessAddress(resData.user.businessAddress || "");
-        setAvatarUrl(resData.user.avatarUrl || "");
+      const res = await safeFetch("/api/verification");
+      const resData = res.data;
+      if (res.ok && resData) {
+        setData(resData);
+        if (resData.user) {
+          setCnicNumber(resData.user.cnicNumber || "");
+          setPersonAddress(resData.user.personAddress || "");
+          setBusinessName(resData.user.businessName || "");
+          setBusinessAddress(resData.user.businessAddress || "");
+          setAvatarUrl(resData.user.avatarUrl || "");
+        }
+      } else {
+        // Fallback: check /api/auth/me if verification returned non-ok
+        const meRes = await safeFetch("/api/auth/me");
+        if (meRes.ok && meRes.data?.user) {
+          setData({ user: meRes.data.user, documents: [] });
+          setCnicNumber(meRes.data.user.cnicNumber || "");
+          setPersonAddress(meRes.data.user.personAddress || "");
+          setBusinessName(meRes.data.user.businessName || "");
+          setBusinessAddress(meRes.data.user.businessAddress || "");
+          setAvatarUrl(meRes.data.user.avatarUrl || "");
+        }
       }
     } catch (e) {
       console.error(e);
@@ -87,9 +101,8 @@ export default function VerificationPage() {
     setSavingIdentity(true);
     setIdentityMessage("");
     try {
-      const res = await fetch("/api/verification", {
+      const res = await safeFetch("/api/verification", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cnicNumber,
           personAddress,
@@ -116,9 +129,8 @@ export default function VerificationPage() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/verification", {
+      const res = await safeFetch("/api/verification", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           documentType: docType || "commercial_license",
           documentNumber: docNumber || cnicNumber || "DOC-SUB-8492",
@@ -149,7 +161,8 @@ export default function VerificationPage() {
       setSubmitting(false);
     }
   };
-  const isExplorer = !data?.user;
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("bg_auth_token") : null;
+  const isExplorer = !data?.user && !token;
   if (!loading && isExplorer) {
     return <AppShell>
         <div className="space-y-6">

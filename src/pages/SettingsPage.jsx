@@ -10,6 +10,7 @@ import {
   Save,
   MessageCircle
 } from "lucide-react";
+import { safeFetch } from "../lib/api.js";
 export default function SettingsPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,9 +24,9 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadUser() {
       try {
-        const res = await fetch("/api/auth/me");
-        const data = await res.json();
-        if (data.user) {
+        const res = await safeFetch("/api/auth/me");
+        const data = res.data;
+        if (data?.user) {
           setCurrentUser(data.user);
           setFullName(data.user.fullName || "");
           setBusinessName(data.user.businessName || "");
@@ -45,9 +46,8 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/verification", {
+      const res = await safeFetch("/api/verification", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           businessName,
           phone

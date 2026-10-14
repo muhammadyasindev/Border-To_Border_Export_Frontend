@@ -23,6 +23,7 @@ import {
   Mail,
   Headphones
 } from "lucide-react";
+import { safeFetch } from "../lib/api.js";
 export default function LandingPage() {
   const navigate = useNavigate(); const location = useLocation();
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -35,15 +36,12 @@ export default function LandingPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const userRes = await fetch("/api/auth/me").catch(() => null);
-        if (userRes?.ok) {
-          const uData = await userRes.json();
-          if (uData.user) {
-            setCurrentUser(uData.user);
-          }
+        const userRes = await safeFetch("/api/auth/me").catch(() => null);
+        if (userRes?.ok && userRes.data?.user) {
+          setCurrentUser(userRes.data.user);
         }
-        const prodRes = await fetch("/api/products").catch(() => null);
-        const prods = prodRes?.ok ? (await prodRes.json()).products || [] : [];
+        const prodRes = await safeFetch("/api/products").catch(() => null);
+        const prods = prodRes?.ok ? (prodRes.data?.products || (Array.isArray(prodRes.data) ? prodRes.data : [])) : [];
         const items = prods.map((p) => ({
           id: p.id,
           title: p.title || "Listed Trade Product",

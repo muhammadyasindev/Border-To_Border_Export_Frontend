@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Package,
@@ -7,8 +7,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Lock,
-  Mail,
-  RefreshCw,
 } from "lucide-react";
 import { EditableSelect } from "../components/ui/EditableSelect.jsx";
 import { safeFetch, setAuthToken } from "../lib/api.js";
@@ -23,8 +21,8 @@ export function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [country, setCountry] = useState("");
-  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("Pakistan");
+  const [city, setCity] = useState("Quetta");
   const [phone, setPhone] = useState("");
   const [cnicNumber, setCnicNumber] = useState("");
 
@@ -36,24 +34,13 @@ export function RegisterPage() {
   const [drivingLicenseNumber, setDrivingLicenseNumber] = useState("");
   const [licenseExpiryDate, setLicenseExpiryDate] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
-  const [vehicleType, setVehicleType] = useState("");
+  const [vehicleType, setVehicleType] = useState("Heavy Articulated Truck (6x4)");
 
-  // OTP Verification fields
-  const [otp, setOtp] = useState("");
-  const [sendingOtp, setSendingOtp] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [resendCooldown, setResendCooldown] = useState(0);
 
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendCooldown]);
-
-  // Step 2 Submission -> Sends OTP to email and moves to Step 3
-  const handleRequestOtp = async (e) => {
+  // Direct Registration (No OTP blocker on initial signup)
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -67,61 +54,29 @@ export function RegisterPage() {
       return;
     }
 
-    setSendingOtp(true);
-
-    try {
-      const res = await safeFetch("/api/auth/register/send-otp", {
-        method: "POST",
-        body: JSON.stringify({ email }),
-      });
-
-      if (!res.ok) {
-        throw new Error(res.error || "Failed to dispatch verification code");
-      }
-
-      setStep(3);
-      setResendCooldown(30);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  // Step 3 Submission -> Verifies OTP and creates user account
-  const handleVerifyAndRegister = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!otp || otp.trim().length !== 6) {
-      setError("Please enter the 6-digit verification code sent to your email.");
-      return;
-    }
-
     setSubmitting(true);
 
     try {
       const payload = {
         role,
-        fullName,
-        email,
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
         password,
         country: country || "Pakistan",
         city: city || "Quetta",
-        phone,
-        cnicNumber,
-        otp: otp.trim(),
+        phone: phone ? phone.trim() : null,
+        cnicNumber: cnicNumber ? cnicNumber.trim() : null,
       };
 
       if (role === "driver") {
-        payload.drivingLicenseNumber = drivingLicenseNumber;
+        payload.drivingLicenseNumber = drivingLicenseNumber.trim();
         payload.licenseExpiryDate = licenseExpiryDate;
-        payload.plateNumber = plateNumber;
+        payload.plateNumber = plateNumber.trim();
         payload.vehicleType = vehicleType;
         payload.businessName = "Independent Haulage Operator";
       } else {
-        payload.businessName = businessName;
-        payload.businessAddress = businessAddress;
+        payload.businessName = businessName ? businessName.trim() : `${fullName.trim()} Trading`;
+        payload.businessAddress = businessAddress ? businessAddress.trim() : null;
       }
 
       const res = await safeFetch("/api/auth/register", {
@@ -130,7 +85,7 @@ export function RegisterPage() {
       });
 
       if (!res.ok) {
-        throw new Error(res.error || "Registration verification failed");
+        throw new Error(res.error || "Registration failed. Please check details.");
       }
 
       const data = res.data;
@@ -140,30 +95,9 @@ export function RegisterPage() {
 
       navigate("/dashboard");
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Registration failed. Please check details.");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0 || sendingOtp) return;
-    setError("");
-    setSendingOtp(true);
-
-    try {
-      const res = await safeFetch("/api/auth/register/send-otp", {
-        method: "POST",
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) {
-        throw new Error(res.error || "Failed to resend code");
-      }
-      setResendCooldown(30);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSendingOtp(false);
     }
   };
 
@@ -196,18 +130,14 @@ export function RegisterPage() {
               Join the regional B2B trade network for Pakistan ⇄ Iran ⇄ Afghanistan ⇄ China
             </p>
 
-            {/* Stepper Indicator */}
+            {/* 2-Step Indicator */}
             <div className="flex items-center justify-center gap-2 mt-4 text-xs font-semibold">
-              <span className={`px-2.5 py-1 rounded-full ${step === 1 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                1. Role
+              <span className={`px-3 py-1 rounded-full ${step === 1 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                1. Select Role
               </span>
               <span className="text-slate-300">→</span>
-              <span className={`px-2.5 py-1 rounded-full ${step === 2 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                2. Details
-              </span>
-              <span className="text-slate-300">→</span>
-              <span className={`px-2.5 py-1 rounded-full ${step === 3 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                3. Email OTP
+              <span className={`px-3 py-1 rounded-full ${step === 2 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                2. Profile Details & Activation
               </span>
             </div>
           </div>
@@ -289,7 +219,7 @@ export function RegisterPage() {
 
           {/* STEP 2: Profile & Details */}
           {step === 2 && (
-            <form onSubmit={handleRequestOtp} className="space-y-3.5">
+            <form onSubmit={handleRegister} className="space-y-3.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
@@ -322,10 +252,9 @@ export function RegisterPage() {
               {role !== "driver" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Business Name *</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Business Name</label>
                     <input
                       type="text"
-                      required
                       placeholder="e.g. Bolan Trading Co."
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
@@ -333,10 +262,9 @@ export function RegisterPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Business Address *</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Business Address</label>
                     <input
                       type="text"
-                      required
                       placeholder="Warehouse or office location"
                       value={businessAddress}
                       onChange={(e) => setBusinessAddress(e.target.value)}
@@ -433,7 +361,7 @@ export function RegisterPage() {
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 flex items-start gap-2">
                 <Lock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
                 <span>
-                  To ensure legitimate trade accounts, a 6-digit verification code will be dispatched to your email address before account activation.
+                  Immediate activation enabled. You can submit customs verification documents inside your workspace after signing up.
                 </span>
               </div>
 
@@ -447,79 +375,11 @@ export function RegisterPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={sendingOtp}
-                  className="px-6 py-2.5 text-xs font-semibold bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  disabled={submitting}
+                  className="px-6 py-2.5 text-xs font-bold bg-[#2563EB] hover:bg-blue-700 text-white rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  {sendingOtp ? "Sending Verification Code..." : "Continue to Email Verification →"}
+                  {submitting ? "Activating Account..." : "Complete Registration & Launch Workspace →"}
                 </button>
-              </div>
-            </form>
-          )}
-
-          {/* STEP 3: Enter 6-Digit Email OTP */}
-          {step === 3 && (
-            <form onSubmit={handleVerifyAndRegister} className="space-y-4">
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center space-y-1">
-                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center mb-1">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-sm text-blue-950">Verify Your Email Address</h3>
-                <p className="text-xs text-blue-800">
-                  We sent a single-use 6-digit code to: <strong className="text-blue-950">{email}</strong>
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="text-[11px] text-blue-600 hover:underline font-semibold mt-1 cursor-pointer"
-                >
-                  Wrong email? Edit details
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider text-center mb-2">
-                  Enter 6-Digit Verification Code *
-                </label>
-                <div className="relative max-w-xs mx-auto">
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    autoFocus
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center text-xl tracking-[0.5em] font-mono font-bold py-3 bg-slate-50 border-2 border-slate-300 rounded-xl focus:outline-none focus:border-blue-600 focus:bg-white text-slate-900"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 text-center mt-1.5">
-                  Code expires in 15 minutes. Check spam folder if not received.
-                </p>
-              </div>
-
-              <div className="pt-2 space-y-2">
-                <button
-                  type="submit"
-                  disabled={submitting || otp.length !== 6}
-                  className="w-full py-2.5 text-xs font-bold bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                >
-                  {submitting ? "Verifying & Creating Account..." : "Verify Code & Complete Registration"}
-                  <CheckCircle2 className="w-4 h-4" />
-                </button>
-
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={resendCooldown > 0 || sendingOtp}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:text-slate-400 flex items-center gap-1 mx-auto cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${sendingOtp ? 'animate-spin' : ''}`} />
-                    {resendCooldown > 0
-                      ? `Resend code in ${resendCooldown}s`
-                      : "Didn't receive code? Resend Code"}
-                  </button>
-                </div>
               </div>
             </form>
           )}
